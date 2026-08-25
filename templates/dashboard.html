@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% block content %}
+<div class="page-head"><div><div class="pill">LIVE SECURITY CONSOLE</div><h1>Dashboard</h1><p>Welcome, {{session.username}} · <b>{{session.role|upper}}</b></p></div><div class="status-dot"><i></i> System protected</div></div>
+<div class="metrics"><div class="metric"><span>◉</span><small>Total proofs</small><b>{{total}}</b><em>+ live</em></div><div class="metric"><span>◎</span><small>Unique students</small><b>{{students}}</b><em>tracked</em></div><div class="metric"><span>⬡</span><small>Integrity</small><b>100%</b><em>verified</em></div><div class="metric"><span>⌁</span><small>Crypto layer</small><b>HMAC</b><em>SHA-256</em></div></div>
+<div class="dashgrid">
+{% if session.role in ['admin','faculty'] %}<div class="card create-card"><div class="section-title"><h2>Create secure session</h2><span>LIVE</span></div>
+<form method="post" action="{{url_for('create_session')}}"><label>Course</label><input name="course" placeholder="Cryptography" required><label>Room</label><input name="room" placeholder="Lab 3" required><label>QR expiry</label><select name="minutes"><option value="2">2 minutes</option><option value="5" selected>5 minutes</option><option value="10">10 minutes</option></select><button class="btn primary full">Generate Dynamic QR ✦</button></form></div>{% endif %}
+<div class="card chart-card"><div class="section-title"><h2>Attendance by course</h2><span>LIVE DATA</span></div>{% for r in course_counts %}<div class="barrow"><div><span>{{r.course}}</span><b>{{r.n}}</b></div><div class="bar"><i style="width:{{ [r.n*12,100]|min }}%"></i></div></div>{% else %}<p>No attendance data yet.</p>{% endfor %}</div>
+</div>
+<div class="card table-card"><div class="section-title"><h2>Recent cryptographic proofs</h2><a href="{{url_for('attendance')}}">View all →</a></div>
+<table><tr><th>Student</th><th>Course</th><th>Timestamp</th><th>Proof hash</th><th>Status</th></tr>{% for r in rows %}<tr><td><b>{{r.student_id}}</b></td><td>{{r.course}}</td><td>{{r.timestamp[11:19]}}</td><td class="mono">{{r.record_hash[:18]}}…</td><td><span class="tag ok">VALID</span></td></tr>{% else %}<tr><td colspan="5">No records yet.</td></tr>{% endfor %}</table></div>
+{% endblock %}
