@@ -1,11 +1,407 @@
-{% extends "base.html" %}{% block content %}
-<div class="page-head"><div><div class="pill">LIVE SECURITY CONSOLE</div><h1>Dashboard</h1><p>Welcome, {{session.username}} · <b>{{session.role|upper}}</b></p></div><div class="status-dot"><i></i> System protected</div></div>
-<div class="metrics"><div class="metric"><span>◉</span><small>Total proofs</small><b>{{total}}</b><em>+ live</em></div><div class="metric"><span>◎</span><small>Unique students</small><b>{{students}}</b><em>tracked</em></div><div class="metric"><span>⬡</span><small>Integrity</small><b>100%</b><em>verified</em></div><div class="metric"><span>⌁</span><small>Crypto layer</small><b>HMAC</b><em>SHA-256</em></div></div>
-<div class="dashgrid">
-{% if session.role in ['admin','faculty'] %}<div class="card create-card"><div class="section-title"><h2>Create secure session</h2><span>LIVE</span></div>
-<form method="post" action="{{url_for('create_session')}}"><label>Course</label><input name="course" placeholder="Cryptography" required><label>Room</label><input name="room" placeholder="Lab 3" required><label>QR expiry</label><select name="minutes"><option value="2">2 minutes</option><option value="5" selected>5 minutes</option><option value="10">10 minutes</option></select><button class="btn primary full">Generate Dynamic QR ✦</button></form></div>{% endif %}
-<div class="card chart-card"><div class="section-title"><h2>Attendance by course</h2><span>LIVE DATA</span></div>{% for r in course_counts %}<div class="barrow"><div><span>{{r.course}}</span><b>{{r.n}}</b></div><div class="bar"><i style="width:{{ [r.n*12,100]|min }}%"></i></div></div>{% else %}<p>No attendance data yet.</p>{% endfor %}</div>
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="head">
+
+    <div>
+
+        <span class="pill">
+            {{ role|upper }} CONTROL CENTER
+        </span>
+
+        <h1>
+            Welcome, {{ session["name"] }} 👋
+        </h1>
+
+        <p>
+            Manage secure cryptographic attendance.
+        </p>
+
+    </div>
+
+    <div class="online">
+        ● SYSTEM PROTECTED
+    </div>
+
 </div>
-<div class="card table-card"><div class="section-title"><h2>Recent cryptographic proofs</h2><a href="{{url_for('attendance')}}">View all →</a></div>
-<table><tr><th>Student</th><th>Course</th><th>Timestamp</th><th>Proof hash</th><th>Status</th></tr>{% for r in rows %}<tr><td><b>{{r.student_id}}</b></td><td>{{r.course}}</td><td>{{r.timestamp[11:19]}}</td><td class="mono">{{r.record_hash[:18]}}…</td><td><span class="tag ok">VALID</span></td></tr>{% else %}<tr><td colspan="5">No records yet.</td></tr>{% endfor %}</table></div>
+
+
+<!-- =====================================================
+     STATISTICS
+===================================================== -->
+
+<div class="metrics">
+
+    <div class="metric">
+
+        <small>
+            Attendance Proofs
+        </small>
+
+        <b>
+            {{ total }}
+        </b>
+
+    </div>
+
+
+    <div class="metric">
+
+        <small>
+            Unique Students
+        </small>
+
+        <b>
+            {{ unique }}
+        </b>
+
+    </div>
+
+
+    <div class="metric">
+
+        <small>
+            Assigned Students
+        </small>
+
+        <b>
+            {{ student_count }}
+        </b>
+
+    </div>
+
+
+    <div class="metric">
+
+        <small>
+            Security
+        </small>
+
+        <b class="good">
+            VERIFIED
+        </b>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     MAIN GRID
+===================================================== -->
+
+<div class="grid">
+
+
+    <!-- CREATE QR -->
+
+    <div class="card">
+
+        <span class="pill">
+            SECURE ATTENDANCE
+        </span>
+
+        <h2>
+            Create Dynamic QR
+        </h2>
+
+        <p>
+            Generate a cryptographically signed
+            attendance session.
+        </p>
+
+
+        <form
+            method="POST"
+            action="{{ url_for('create_session') }}"
+        >
+
+            <label>
+                Course
+            </label>
+
+            <input
+                type="text"
+                name="course"
+                placeholder="Cryptography"
+                required
+            >
+
+
+            <label>
+                Room
+            </label>
+
+            <input
+                type="text"
+                name="room"
+                placeholder="Lab 1"
+                required
+            >
+
+
+            <label>
+                QR Expiry
+            </label>
+
+            <select name="minutes">
+
+                <option value="2">
+                    2 Minutes
+                </option>
+
+                <option value="5" selected>
+                    5 Minutes
+                </option>
+
+                <option value="10">
+                    10 Minutes
+                </option>
+
+                <option value="15">
+                    15 Minutes
+                </option>
+
+            </select>
+
+
+            <br><br>
+
+            <button
+                type="submit"
+                class="btn full"
+            >
+                Generate Secure QR ✦
+            </button>
+
+        </form>
+
+    </div>
+
+
+    <!-- STUDENT LIST -->
+
+    <div class="card">
+
+        <span class="pill">
+            STUDENT MANAGEMENT
+        </span>
+
+        <h2>
+            Students under Nithisha
+        </h2>
+
+        <p>
+            30 registered students
+        </p>
+
+
+        <div class="students">
+
+            {% for student in students %}
+
+                <span>
+
+                    {{ student["username"] }}
+
+                </span>
+
+            {% endfor %}
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     RECENT ATTENDANCE
+===================================================== -->
+
+<div class="card">
+
+    <div class="section-title">
+
+        <div>
+
+            <span class="pill">
+                LIVE RECORDS
+            </span>
+
+            <h2>
+                Recent Attendance
+            </h2>
+
+        </div>
+
+        <a
+            href="{{ url_for('attendance') }}"
+            class="btn"
+        >
+            View All
+        </a>
+
+    </div>
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        Student ID
+                    </th>
+
+                    <th>
+                        Course
+                    </th>
+
+                    <th>
+                        Room
+                    </th>
+
+                    <th>
+                        Time
+                    </th>
+
+                    <th>
+                        Security
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for row in rows %}
+
+                <tr>
+
+                    <td>
+                        <strong>
+                            {{ row["student_id"] }}
+                        </strong>
+                    </td>
+
+                    <td>
+                        {{ row["course"] }}
+                    </td>
+
+                    <td>
+                        {{ row["room"] }}
+                    </td>
+
+                    <td>
+                        {{ row["timestamp"] }}
+                    </td>
+
+                    <td>
+
+                        <span class="good">
+                            ✓ VALID
+                        </span>
+
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="5">
+
+                        <div class="empty">
+
+                            <div>
+                                🔐
+                            </div>
+
+                            <h3>
+                                No attendance records yet
+                            </h3>
+
+                            <p>
+                                Generate a QR session to
+                                start recording attendance.
+                            </p>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     SECURITY INFORMATION
+===================================================== -->
+
+<div class="grid">
+
+
+    <div class="card security-card">
+
+        <div class="security-icon">
+            🔐
+        </div>
+
+        <div>
+
+            <h3>
+                HMAC-SHA256 Protected
+            </h3>
+
+            <p>
+                Every attendance session uses a
+                cryptographically signed token.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="card security-card">
+
+        <div class="security-icon">
+            🛡️
+        </div>
+
+        <div>
+
+            <h3>
+                Tamper-Evident Ledger
+            </h3>
+
+            <p>
+                Attendance records are connected using
+                a SHA-256 hash chain.
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
 {% endblock %}

@@ -1,0 +1,501 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="head">
+
+    <div>
+
+        <span class="pill">
+            STUDENT PORTAL
+        </span>
+
+        <h1>
+            Hello, {{ student["name"] }} 👋
+        </h1>
+
+        <p>
+            Student ID:
+            <strong>{{ student["username"] }}</strong>
+            &nbsp; • &nbsp;
+            Faculty: Nithisha
+        </p>
+
+    </div>
+
+    <div class="online">
+        ● ACCOUNT VERIFIED
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     STUDENT STATISTICS
+===================================================== -->
+
+<div class="metrics">
+
+    <div class="metric">
+
+        <small>
+            Attendance Percentage
+        </small>
+
+        <b>
+            {{ percentage }}%
+        </b>
+
+    </div>
+
+
+    <div class="metric">
+
+        <small>
+            Classes Present
+        </small>
+
+        <b>
+            {{ present }}
+        </b>
+
+    </div>
+
+
+    <div class="metric">
+
+        <small>
+            Total Sessions
+        </small>
+
+        <b>
+            {{ total }}
+        </b>
+
+    </div>
+
+
+    <div class="metric">
+
+        <small>
+            Security Status
+        </small>
+
+        <b class="good">
+            VERIFIED
+        </b>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     STUDENT PROFILE
+===================================================== -->
+
+<div class="grid">
+
+    <div class="card">
+
+        <span class="pill">
+            STUDENT PROFILE
+        </span>
+
+        <h2>
+            {{ student["name"] }}
+        </h2>
+
+        <div class="profile-row">
+
+            <span>
+                Student ID
+            </span>
+
+            <strong>
+                {{ student["username"] }}
+            </strong>
+
+        </div>
+
+
+        <div class="profile-row">
+
+            <span>
+                Department
+            </span>
+
+            <strong>
+                AI & ML
+            </strong>
+
+        </div>
+
+
+        <div class="profile-row">
+
+            <span>
+                Faculty
+            </span>
+
+            <strong>
+                Nithisha
+            </strong>
+
+        </div>
+
+
+        <div class="profile-row">
+
+            <span>
+                Account Status
+            </span>
+
+            <strong class="good">
+                ACTIVE
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- SECURITY CARD -->
+
+    <div class="card">
+
+        <span class="pill">
+            CRYPTOGRAPHIC SECURITY
+        </span>
+
+        <h2>
+            Your Attendance is Protected
+        </h2>
+
+        <p>
+            Every attendance entry is protected using
+            cryptographic verification and a tamper-evident
+            SHA-256 hash chain.
+        </p>
+
+
+        <div class="security-item">
+
+            <span class="security-icon">
+                🔐
+            </span>
+
+            <div>
+
+                <strong>
+                    HMAC-SHA256
+                </strong>
+
+                <small>
+                    Attendance proof authentication
+                </small>
+
+            </div>
+
+        </div>
+
+
+        <div class="security-item">
+
+            <span class="security-icon">
+                🛡️
+            </span>
+
+            <div>
+
+                <strong>
+                    SHA-256 Hash Chain
+                </strong>
+
+                <small>
+                    Tamper detection
+                </small>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     ATTENDANCE HISTORY
+===================================================== -->
+
+<div class="card">
+
+    <div class="section-title">
+
+        <div>
+
+            <span class="pill">
+                ATTENDANCE HISTORY
+            </span>
+
+            <h2>
+                My Attendance
+            </h2>
+
+        </div>
+
+        <a
+            href="{{ url_for('attendance') }}"
+            class="btn"
+        >
+            View Records
+        </a>
+
+    </div>
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        Course
+                    </th>
+
+                    <th>
+                        Room
+                    </th>
+
+                    <th>
+                        Date
+                    </th>
+
+                    <th>
+                        Time
+                    </th>
+
+                    <th>
+                        Security
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for row in rows %}
+
+                <tr>
+
+                    <td>
+
+                        <strong>
+                            {{ row["course"] }}
+                        </strong>
+
+                    </td>
+
+
+                    <td>
+                        {{ row["room"] }}
+                    </td>
+
+
+                    <td>
+                        {{ row["timestamp"][:10] }}
+                    </td>
+
+
+                    <td>
+                        {{ row["timestamp"][11:19] }}
+                    </td>
+
+
+                    <td>
+
+                        <span class="good">
+                            ✓ CRYPTOGRAPHICALLY VERIFIED
+                        </span>
+
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="5">
+
+                        <div class="empty">
+
+                            <div>
+                                📋
+                            </div>
+
+                            <h3>
+                                No attendance records
+                            </h3>
+
+                            <p>
+                                Your attendance records
+                                will appear here after you
+                                attend a class.
+                            </p>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     HOW ATTENDANCE WORKS
+===================================================== -->
+
+<div class="card">
+
+    <span class="pill">
+        HOW IT WORKS
+    </span>
+
+    <h2>
+        Mark Your Attendance
+    </h2>
+
+
+    <div class="steps">
+
+        <div class="step">
+
+            <span>
+                01
+            </span>
+
+            <div>
+
+                <strong>
+                    Faculty generates QR
+                </strong>
+
+                <p>
+                    Nithisha creates a time-limited
+                    cryptographic attendance session.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="step">
+
+            <span>
+                02
+            </span>
+
+            <div>
+
+                <strong>
+                    Scan the QR
+                </strong>
+
+                <p>
+                    Scan the dynamic QR code displayed
+                    by the faculty.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="step">
+
+            <span>
+                03
+            </span>
+
+            <div>
+
+                <strong>
+                    Submit Student ID
+                </strong>
+
+                <p>
+                    Enter your student ID to prove
+                    your identity.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="step">
+
+            <span>
+                04
+            </span>
+
+            <div>
+
+                <strong>
+                    Cryptographic Verification
+                </strong>
+
+                <p>
+                    The server validates the signed
+                    attendance token.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="step">
+
+            <span>
+                05
+            </span>
+
+            <div>
+
+                <strong>
+                    Attendance Recorded
+                </strong>
+
+                <p>
+                    Your attendance is added to the
+                    tamper-evident hash chain.
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+{% endblock %}

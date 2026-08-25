@@ -14,6 +14,7 @@ import hashlib
 import hmac
 import secrets
 import io
+import os
 
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
@@ -21,24 +22,28 @@ from urllib.parse import urlencode
 import qrcode
 
 
-# =========================================================
-# APPLICATION CONFIGURATION
-# =========================================================
+# ============================================================
+# CONFIGURATION
+# ============================================================
 
 app = Flask(__name__)
 
-app.secret_key = "change-this-secret-in-production"
+app.secret_key = os.environ.get(
+    "FLASK_SECRET",
+    "cryptopresence-secret-2026"
+)
 
 DB = "attendance.db"
 
-# Demo secret for cryptographic operations
-# For real deployment, use an environment variable.
-MASTER_SECRET = b"change-this-demo-secret"
+MASTER_SECRET = os.environ.get(
+    "MASTER_SECRET",
+    "cryptopresence-master-secret-2026"
+).encode()
 
 
-# =========================================================
-# DATABASE CONNECTION
-# =========================================================
+# ============================================================
+# DATABASE
+# ============================================================
 
 def get_db():
     connection = sqlite3.connect(DB)
@@ -46,73 +51,214 @@ def get_db():
     return connection
 
 
-# =========================================================
+# ============================================================
+# PASSWORD HASHING
+# ============================================================
+
+def hash_password(password):
+    return hashlib.sha256(
+        password.encode()
+    ).hexdigest()
+
+
+# ============================================================
 # DATABASE INITIALIZATION
-# =========================================================
+# ============================================================
 
 def init_db():
 
     connection = get_db()
 
     connection.executescript("""
-    
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL
-    );
 
-    CREATE TABLE IF NOT EXISTS sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        course TEXT NOT NULL,
-        room TEXT NOT NULL,
-        nonce TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        expires_at TEXT NOT NULL
-    );
+        CREATE TABLE IF NOT EXISTS users (
 
-    CREATE TABLE IF NOT EXISTS attendance (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        session_id INTEGER NOT NULL,
-        student_id TEXT NOT NULL,
-        timestamp TEXT NOT NULL,
-        proof TEXT NOT NULL,
-        previous_hash TEXT NOT NULL,
-        record_hash TEXT NOT NULL,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-        UNIQUE(session_id, student_id)
-    );
+            name TEXT NOT NULL,
+
+            username TEXT UNIQUE NOT NULL,
+
+            password_hash TEXT NOT NULL,
+
+            role TEXT NOT NULL,
+
+            faculty_username TEXT
+
+        );
+
+
+        CREATE TABLE IF NOT EXISTS sessions (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            course TEXT NOT NULL,
+
+            room TEXT NOT NULL,
+
+            nonce TEXT NOT NULL,
+
+            created_at TEXT NOT NULL,
+
+            expires_at TEXT NOT NULL,
+
+            faculty_username TEXT NOT NULL
+
+        );
+
+
+        CREATE TABLE IF NOT EXISTS attendance (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            session_id INTEGER NOT NULL,
+
+            student_id TEXT NOT NULL,
+
+            timestamp TEXT NOT NULL,
+
+            proof TEXT NOT NULL,
+
+            previous_hash TEXT NOT NULL,
+
+            record_hash TEXT NOT NULL,
+
+            UNIQUE(session_id, student_id)
+
+        );
 
     """)
 
-    # Demo users
-    demo_users = [
-        ("admin", "admin", "admin"),
-        ("faculty", "faculty", "faculty"),
-        ("student", "student", "student")
+
+    # ========================================================
+    # THREE ADMINS
+    # ========================================================
+
+    admins = [
+
+        (
+            "Nikhil",
+            "Nikhil",
+            "nikhil143"
+        ),
+
+        (
+            "Saketh",
+            "saketh",
+            "saketh123"
+        ),
+
+        (
+            "Sai Charan",
+            "sai_charan",
+            "lizard143"
+        )
+
     ]
 
-    for username, password, role in demo_users:
+
+    for name, username, password in admins:
 
         connection.execute(
             """
             INSERT OR IGNORE INTO users
-            (username, password, role)
-            VALUES (?, ?, ?)
+            (
+                name,
+                username,
+                password_hash,
+                role
+            )
+            VALUES (?, ?, ?, ?)
             """,
-            (username, password, role)
+            (
+                name,
+                username,
+                hash_password(password),
+                "admin"
+            )
         )
 
+
+    # ========================================================
+    # FACULTY
+    # ========================================================
+
+    connection.execute(
+        """
+        INSERT OR IGNORE INTO users
+        (
+            name,
+            username,
+            password_hash,
+            role
+        )
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            "Nithisha",
+            "Nithisha",
+            hash_password("faculty@good"),
+            "faculty"
+        )
+    )
+
+
+    # ========================================================
+    # 30 STUDENTS
+    # ========================================================
+
+    for number in range(1, 31):
+
+        student_id = (
+            f"23AIML{number:03d}"
+        )
+
+        student_name = (
+            f"Student {number:02d}"
+        )
+
+        student_password = (
+            f"Student@{number:03d}"
+        )
+
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO users
+            (
+                name,
+                username,
+                password_hash,
+                role,
+                faculty_username
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                student_name,
+                student_id,
+                hash_password(
+                    student_password
+                ),
+                "student",
+                "Nithisha"
+            )
+        )
+
+
     connection.commit()
+
     connection.close()
 
 
-# =========================================================
+# ============================================================
 # CRYPTOGRAPHIC SESSION SIGNATURE
-# =========================================================
+# ============================================================
 
-def session_signature(session_id, nonce, expires_at):
+def create_session_signature(
+    session_id,
+    nonce,
+    expires_at
+):
 
     message = (
         f"{session_id}|"
@@ -120,18 +266,16 @@ def session_signature(session_id, nonce, expires_at):
         f"{expires_at}"
     ).encode()
 
-    signature = hmac.new(
+    return hmac.new(
         MASTER_SECRET,
         message,
         hashlib.sha256
     ).hexdigest()
 
-    return signature
 
-
-# =========================================================
-# ATTENDANCE RECORD HASH
-# =========================================================
+# ============================================================
+# ATTENDANCE HASH
+# ============================================================
 
 def create_record_hash(
     session_id,
@@ -141,7 +285,7 @@ def create_record_hash(
     previous_hash
 ):
 
-    data = (
+    message = (
         f"{session_id}|"
         f"{student_id}|"
         f"{timestamp}|"
@@ -149,54 +293,91 @@ def create_record_hash(
         f"{previous_hash}"
     ).encode()
 
-    return hashlib.sha256(data).hexdigest()
+    return hashlib.sha256(
+        message
+    ).hexdigest()
 
 
-# =========================================================
-# HOME PAGE
-# =========================================================
+# ============================================================
+# HOME
+# ============================================================
 
 @app.route("/")
 def home():
 
     connection = get_db()
 
-    total_attendance = connection.execute(
-        "SELECT COUNT(*) AS n FROM attendance"
-    ).fetchone()["n"]
+    total_proofs = connection.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM attendance
+        """
+    ).fetchone()["count"]
 
     total_students = connection.execute(
         """
-        SELECT COUNT(DISTINCT student_id) AS n
-        FROM attendance
+        SELECT COUNT(*) AS count
+        FROM users
+        WHERE role = 'student'
         """
-    ).fetchone()["n"]
+    ).fetchone()["count"]
+
+    total_faculty = connection.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM users
+        WHERE role = 'faculty'
+        """
+    ).fetchone()["count"]
 
     total_sessions = connection.execute(
-        "SELECT COUNT(*) AS n FROM sessions"
-    ).fetchone()["n"]
+        """
+        SELECT COUNT(*) AS count
+        FROM sessions
+        """
+    ).fetchone()["count"]
 
     connection.close()
 
+    stats = {
+
+        "proofs": total_proofs,
+
+        "students": total_students,
+
+        "faculty": total_faculty,
+
+        "sessions": total_sessions
+
+    }
+
     return render_template(
         "home.html",
-        count=total_attendance,
-        students=total_students,
-        sessions=total_sessions
+        stats=stats
     )
 
 
-# =========================================================
+# ============================================================
 # LOGIN
-# =========================================================
+# ============================================================
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route(
+    "/login",
+    methods=["GET", "POST"]
+)
 def login():
 
     if request.method == "POST":
 
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
+        username = request.form.get(
+            "username",
+            ""
+        ).strip()
+
+        password = request.form.get(
+            "password",
+            ""
+        )
 
         connection = get_db()
 
@@ -205,54 +386,258 @@ def login():
             SELECT *
             FROM users
             WHERE username = ?
-            AND password = ?
+            AND password_hash = ?
             """,
-            (username, password)
+            (
+                username,
+                hash_password(password)
+            )
         ).fetchone()
 
         connection.close()
 
+
         if user:
 
-            session["username"] = user["username"]
-            session["role"] = user["role"]
+            session.clear()
 
-            return redirect(url_for("dashboard"))
+            session["user_id"] = user["id"]
+
+            session["username"] = (
+                user["username"]
+            )
+
+            session["name"] = (
+                user["name"]
+            )
+
+            session["role"] = (
+                user["role"]
+            )
+
+            return redirect(
+                url_for("dashboard")
+            )
+
 
         flash(
             "Invalid username or password.",
             "danger"
         )
 
-    return render_template("login.html")
+
+    return render_template(
+        "login.html"
+    )
 
 
-# =========================================================
+# ============================================================
 # LOGOUT
-# =========================================================
+# ============================================================
 
 @app.route("/logout")
 def logout():
 
     session.clear()
 
-    return redirect(url_for("home"))
+    return redirect(
+        url_for("home")
+    )
 
 
-# =========================================================
+# ============================================================
 # DASHBOARD
-# =========================================================
+# ============================================================
 
 @app.route("/dashboard")
 def dashboard():
 
     if "username" not in session:
-        return redirect(url_for("login"))
+
+        return redirect(
+            url_for("login")
+        )
+
+
+    role = session["role"]
 
     connection = get_db()
 
-    # Recent attendance
-    rows = connection.execute(
+
+    # ========================================================
+    # ADMIN / FACULTY
+    # ========================================================
+
+    if role in ["admin", "faculty"]:
+
+
+        # ----------------------------------------------------
+        # STUDENTS
+        # ----------------------------------------------------
+
+        if role == "faculty":
+
+            students = connection.execute(
+                """
+                SELECT *
+                FROM users
+                WHERE role = 'student'
+                AND faculty_username = ?
+                ORDER BY username
+                """,
+                (
+                    session["username"],
+                )
+            ).fetchall()
+
+
+            attendance_rows = connection.execute(
+                """
+                SELECT
+                    a.*,
+                    s.course,
+                    s.room
+
+                FROM attendance a
+
+                JOIN sessions s
+                ON s.id = a.session_id
+
+                WHERE s.faculty_username = ?
+
+                ORDER BY a.id DESC
+
+                LIMIT 50
+                """,
+                (
+                    session["username"],
+                )
+            ).fetchall()
+
+
+            total_attendance = connection.execute(
+                """
+                SELECT COUNT(*) AS count
+
+                FROM attendance a
+
+                JOIN sessions s
+                ON s.id = a.session_id
+
+                WHERE s.faculty_username = ?
+                """,
+                (
+                    session["username"],
+                )
+            ).fetchone()["count"]
+
+
+        else:
+
+            students = connection.execute(
+                """
+                SELECT *
+                FROM users
+                WHERE role = 'student'
+                ORDER BY username
+                """
+            ).fetchall()
+
+
+            attendance_rows = connection.execute(
+                """
+                SELECT
+                    a.*,
+                    s.course,
+                    s.room
+
+                FROM attendance a
+
+                JOIN sessions s
+                ON s.id = a.session_id
+
+                ORDER BY a.id DESC
+
+                LIMIT 50
+                """
+            ).fetchall()
+
+
+            total_attendance = connection.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM attendance
+                """
+            ).fetchone()["count"]
+
+
+        unique_students = len(
+            set(
+                row["student_id"]
+                for row in attendance_rows
+            )
+        )
+
+
+        total_sessions = connection.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM sessions
+            """
+        ).fetchone()["count"]
+
+
+        recent_sessions = connection.execute(
+            """
+            SELECT *
+            FROM sessions
+            ORDER BY id DESC
+            LIMIT 10
+            """
+        ).fetchall()
+
+
+        connection.close()
+
+
+        return render_template(
+            "dashboard.html",
+
+            role=role,
+
+            students=students,
+
+            rows=attendance_rows,
+
+            total=total_attendance,
+
+            unique=unique_students,
+
+            sessions=recent_sessions,
+
+            student_count=len(students),
+
+            session_count=total_sessions
+        )
+
+
+    # ========================================================
+    # STUDENT DASHBOARD
+    # ========================================================
+
+    student = connection.execute(
+        """
+        SELECT *
+        FROM users
+        WHERE username = ?
+        """,
+        (
+            session["username"],
+        )
+    ).fetchone()
+
+
+    attendance_rows = connection.execute(
         """
         SELECT
             a.*,
@@ -264,79 +649,85 @@ def dashboard():
         JOIN sessions s
         ON s.id = a.session_id
 
+        WHERE a.student_id = ?
+
         ORDER BY a.id DESC
-
-        LIMIT 50
-        """
+        """,
+        (
+            session["username"],
+        )
     ).fetchall()
 
-    # Course statistics
-    course_counts = connection.execute(
+
+    total_sessions = connection.execute(
         """
-        SELECT
-            s.course,
-            COUNT(*) AS n
-
-        FROM attendance a
-
-        JOIN sessions s
-        ON s.id = a.session_id
-
-        GROUP BY s.course
-
-        ORDER BY n DESC
-        """
-    ).fetchall()
-
-    # Recent sessions
-    active_sessions = connection.execute(
-        """
-        SELECT *
+        SELECT COUNT(*) AS count
         FROM sessions
-        ORDER BY id DESC
-        LIMIT 8
         """
-    ).fetchall()
+    ).fetchone()["count"]
 
-    # Total attendance
-    total = connection.execute(
-        """
-        SELECT COUNT(*) AS n
-        FROM attendance
-        """
-    ).fetchone()["n"]
 
-    # Unique students
-    students = connection.execute(
+    present_count = connection.execute(
         """
-        SELECT COUNT(DISTINCT student_id) AS n
+        SELECT COUNT(*) AS count
         FROM attendance
-        """
-    ).fetchone()["n"]
+        WHERE student_id = ?
+        """,
+        (
+            session["username"],
+        )
+    ).fetchone()["count"]
+
 
     connection.close()
 
+
+    percentage = 0
+
+    if total_sessions > 0:
+
+        percentage = round(
+            (
+                present_count
+                /
+                total_sessions
+            ) * 100,
+            1
+        )
+
+
     return render_template(
-        "dashboard.html",
-        rows=rows,
-        course_counts=course_counts,
-        active=active_sessions,
-        total=total,
-        students=students
+        "student_dashboard.html",
+
+        student=student,
+
+        rows=attendance_rows,
+
+        total=total_sessions,
+
+        present=present_count,
+
+        percentage=percentage
     )
 
 
-# =========================================================
+# ============================================================
 # CREATE ATTENDANCE SESSION
-# =========================================================
+# ============================================================
 
-@app.route("/create-session", methods=["POST"])
+@app.route(
+    "/create-session",
+    methods=["POST"]
+)
 def create_session():
 
-    # Only admin/faculty can create sessions
-    if session.get("role") not in ("admin", "faculty"):
+    if session.get("role") not in [
+        "admin",
+        "faculty"
+    ]:
 
         return "Unauthorized", 403
+
 
     course = request.form.get(
         "course",
@@ -347,6 +738,7 @@ def create_session():
         "room",
         ""
     ).strip()
+
 
     try:
 
@@ -361,23 +753,32 @@ def create_session():
 
         minutes = 5
 
-    # Keep expiry between 1 and 30 minutes
+
     minutes = max(
         1,
         min(minutes, 30)
     )
 
-    now = datetime.now(timezone.utc)
+
+    now = datetime.now(
+        timezone.utc
+    )
 
     expires = (
         now +
-        timedelta(minutes=minutes)
+        timedelta(
+            minutes=minutes
+        )
     )
 
-    # Generate secure random nonce
-    nonce = secrets.token_urlsafe(18)
+
+    nonce = secrets.token_urlsafe(
+        24
+    )
+
 
     connection = get_db()
+
 
     cursor = connection.execute(
         """
@@ -387,24 +788,29 @@ def create_session():
             room,
             nonce,
             created_at,
-            expires_at
+            expires_at,
+            faculty_username
         )
 
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
         (
             course,
             room,
             nonce,
             now.isoformat(),
-            expires.isoformat()
+            expires.isoformat(),
+            session["username"]
         )
     )
+
 
     session_id = cursor.lastrowid
 
     connection.commit()
+
     connection.close()
+
 
     return redirect(
         url_for(
@@ -414,11 +820,53 @@ def create_session():
     )
 
 
-# =========================================================
-# QR PAGE
-# =========================================================
+# ============================================================
+# CREATE QR PAYLOAD
+# ============================================================
 
-@app.route("/session/<int:session_id>/qr")
+def create_qr_payload(
+    attendance_session
+):
+
+    signature = create_session_signature(
+        attendance_session["id"],
+        attendance_session["nonce"],
+        attendance_session["expires_at"]
+    )
+
+
+    # IMPORTANT:
+    # urlencode prevents + and : in the timestamp
+    # from breaking the cryptographic token.
+
+    parameters = urlencode({
+
+        "nonce":
+            attendance_session["nonce"],
+
+        "exp":
+            attendance_session["expires_at"],
+
+        "sig":
+            signature
+
+    })
+
+
+    return (
+        f"{request.host_url}"
+        f"mark/{attendance_session['id']}"
+        f"?{parameters}"
+    )
+
+
+# ============================================================
+# QR PAGE
+# ============================================================
+
+@app.route(
+    "/session/<int:session_id>/qr"
+)
 def qr_page(session_id):
 
     connection = get_db()
@@ -429,50 +877,32 @@ def qr_page(session_id):
         FROM sessions
         WHERE id = ?
         """,
-        (session_id,)
+        (
+            session_id,
+        )
     ).fetchone()
 
     connection.close()
+
 
     if not attendance_session:
 
         return "Session not found", 404
 
-    # Generate cryptographic signature
-    signature = session_signature(
-        attendance_session["id"],
-        attendance_session["nonce"],
-        attendance_session["expires_at"]
-    )
-
-    # IMPORTANT:
-    # urlencode() protects +, :, etc. inside the expiry timestamp.
-    parameters = urlencode(
-        {
-            "nonce": attendance_session["nonce"],
-            "exp": attendance_session["expires_at"],
-            "sig": signature
-        }
-    )
-
-    payload = (
-        f"{request.host_url}"
-        f"mark/{attendance_session['id']}"
-        f"?{parameters}"
-    )
 
     return render_template(
         "qr.html",
-        s=attendance_session,
-        payload=payload
+        s=attendance_session
     )
 
 
-# =========================================================
+# ============================================================
 # QR IMAGE
-# =========================================================
+# ============================================================
 
-@app.route("/session/<int:session_id>/qr.png")
+@app.route(
+    "/session/<int:session_id>/qr.png"
+)
 def qr_png(session_id):
 
     connection = get_db()
@@ -483,39 +913,28 @@ def qr_png(session_id):
         FROM sessions
         WHERE id = ?
         """,
-        (session_id,)
+        (
+            session_id,
+        )
     ).fetchone()
 
     connection.close()
+
 
     if not attendance_session:
 
         return "Session not found", 404
 
-    # Generate signature
-    signature = session_signature(
-        attendance_session["id"],
-        attendance_session["nonce"],
-        attendance_session["expires_at"]
+
+    payload = create_qr_payload(
+        attendance_session
     )
 
-    # IMPORTANT QR FIX
-    parameters = urlencode(
-        {
-            "nonce": attendance_session["nonce"],
-            "exp": attendance_session["expires_at"],
-            "sig": signature
-        }
+
+    qr_image = qrcode.make(
+        payload
     )
 
-    payload = (
-        f"{request.host_url}"
-        f"mark/{attendance_session['id']}"
-        f"?{parameters}"
-    )
-
-    # Generate QR
-    qr_image = qrcode.make(payload)
 
     buffer = io.BytesIO()
 
@@ -526,15 +945,16 @@ def qr_png(session_id):
 
     buffer.seek(0)
 
+
     return send_file(
         buffer,
         mimetype="image/png"
     )
 
 
-# =========================================================
+# ============================================================
 # MARK ATTENDANCE
-# =========================================================
+# ============================================================
 
 @app.route(
     "/mark/<int:session_id>",
@@ -550,16 +970,19 @@ def mark(session_id):
         FROM sessions
         WHERE id = ?
         """,
-        (session_id,)
+        (
+            session_id,
+        )
     ).fetchone()
 
     connection.close()
+
 
     if not attendance_session:
 
         return "Session not found", 404
 
-    # Get cryptographic parameters
+
     nonce = request.args.get(
         "nonce",
         ""
@@ -570,60 +993,68 @@ def mark(session_id):
         ""
     )
 
-    signature = request.args.get(
+    received_signature = request.args.get(
         "sig",
         ""
     )
 
-    # Generate expected signature
-    expected_signature = session_signature(
-        attendance_session["id"],
-        nonce,
-        expiry
+
+    expected_signature = (
+        create_session_signature(
+            attendance_session["id"],
+            nonce,
+            expiry
+        )
     )
 
-    # Compare signatures securely
+
     signature_valid = hmac.compare_digest(
-        signature,
+        received_signature,
         expected_signature
     )
 
-    # Make sure nonce belongs to this session
+
     nonce_valid = (
         nonce ==
         attendance_session["nonce"]
     )
 
-    # Make sure expiry matches original expiry
+
     expiry_valid = (
         expiry ==
         attendance_session["expires_at"]
     )
 
-    # Check expiration
+
     try:
 
-        expiry_datetime = datetime.fromisoformat(
+        expiry_time = datetime.fromisoformat(
             expiry
         )
 
         expired = (
             datetime.now(timezone.utc)
             >
-            expiry_datetime
+            expiry_time
         )
 
     except Exception:
 
         expired = True
 
-    # Final cryptographic validation
+
     token_valid = (
+
         signature_valid
+
         and nonce_valid
+
         and expiry_valid
+
         and not expired
+
     )
+
 
     if not token_valid:
 
@@ -635,9 +1066,10 @@ def mark(session_id):
             )
         ), 403
 
-    # =====================================================
-    # POST - RECORD ATTENDANCE
-    # =====================================================
+
+    # ========================================================
+    # POST ATTENDANCE
+    # ========================================================
 
     if request.method == "POST":
 
@@ -646,6 +1078,7 @@ def mark(session_id):
             ""
         ).strip().upper()
 
+
         if not student_id:
 
             return render_template(
@@ -653,32 +1086,70 @@ def mark(session_id):
                 message="Student ID is required."
             ), 400
 
-        timestamp = datetime.now(
-            timezone.utc
-        ).isoformat()
-
-        # Generate cryptographic attendance proof
-        proof_message = (
-            f"{attendance_session['id']}|"
-            f"{student_id}|"
-            f"{timestamp}|"
-            f"{nonce}"
-        ).encode()
-
-        proof = hmac.new(
-            MASTER_SECRET,
-            proof_message,
-            hashlib.sha256
-        ).hexdigest()
 
         connection = get_db()
 
-        # Prevent duplicate attendance
-        already_exists = connection.execute(
+
+        # Make sure student exists
+        student = connection.execute(
+            """
+            SELECT *
+            FROM users
+
+            WHERE username = ?
+
+            AND role = 'student'
+            """,
+            (
+                student_id,
+            )
+        ).fetchone()
+
+
+        if not student:
+
+            connection.close()
+
+            return render_template(
+                "error.html",
+                message="Student account not found."
+            ), 404
+
+
+        # ====================================================
+        # CHECK FACULTY ASSIGNMENT
+        # ====================================================
+
+        if (
+            student["faculty_username"]
+            !=
+            attendance_session[
+                "faculty_username"
+            ]
+        ):
+
+            connection.close()
+
+            return render_template(
+                "error.html",
+                message=(
+                    "This student is not "
+                    "assigned to this faculty."
+                )
+            ), 403
+
+
+        # ====================================================
+        # DUPLICATE CHECK
+        # ====================================================
+
+        existing = connection.execute(
             """
             SELECT id
             FROM attendance
+
             WHERE session_id = ?
+
             AND student_id = ?
             """,
             (
@@ -687,39 +1158,75 @@ def mark(session_id):
             )
         ).fetchone()
 
-        if already_exists:
+
+        if existing:
 
             connection.close()
 
             return render_template(
                 "error.html",
                 message=(
-                    "Attendance already recorded "
-                    "for this student."
+                    "Attendance already "
+                    "recorded for this student."
                 )
             ), 409
 
-        # Get previous hash
-        last_record = connection.execute(
+
+        # ====================================================
+        # CRYPTOGRAPHIC PROOF
+        # ====================================================
+
+        timestamp = datetime.now(
+            timezone.utc
+        ).isoformat()
+
+
+        proof_message = (
+            f"{attendance_session['id']}|"
+            f"{student_id}|"
+            f"{timestamp}|"
+            f"{nonce}"
+        ).encode()
+
+
+        proof = hmac.new(
+            MASTER_SECRET,
+            proof_message,
+            hashlib.sha256
+        ).hexdigest()
+
+
+        # ====================================================
+        # PREVIOUS HASH
+        # ====================================================
+
+        previous_record = connection.execute(
             """
             SELECT record_hash
             FROM attendance
+
             ORDER BY id DESC
+
             LIMIT 1
             """
         ).fetchone()
 
-        if last_record:
+
+        if previous_record:
 
             previous_hash = (
-                last_record["record_hash"]
+                previous_record["record_hash"]
             )
 
         else:
 
             previous_hash = "GENESIS"
 
-        # Generate current record hash
+
+        # ====================================================
+        # CURRENT HASH
+        # ====================================================
+
         current_hash = create_record_hash(
             attendance_session["id"],
             student_id,
@@ -728,7 +1235,11 @@ def mark(session_id):
             previous_hash
         )
 
-        # Store attendance
+
+        # ====================================================
+        # SAVE ATTENDANCE
+        # ====================================================
+
         connection.execute(
             """
             INSERT INTO attendance
@@ -753,33 +1264,140 @@ def mark(session_id):
             )
         )
 
+
         connection.commit()
+
         connection.close()
+
 
         return render_template(
             "success.html",
-            student=student_id,
+
+            student=student,
+
             s=attendance_session,
+
             hash=current_hash
         )
 
-    # GET request
+
     return render_template(
         "mark.html",
         s=attendance_session
     )
 
 
-# =========================================================
-# CRYPTOGRAPHIC INTEGRITY VERIFICATION
-# =========================================================
+# ============================================================
+# ATTENDANCE RECORDS
+# ============================================================
+
+@app.route("/attendance")
+def attendance():
+
+    if "username" not in session:
+
+        return redirect(
+            url_for("login")
+        )
+
+
+    connection = get_db()
+
+
+    if session["role"] == "student":
+
+        rows = connection.execute(
+            """
+            SELECT
+                a.*,
+                s.course,
+                s.room
+
+            FROM attendance a
+
+            JOIN sessions s
+            ON s.id = a.session_id
+
+            WHERE a.student_id = ?
+
+            ORDER BY a.id DESC
+            """,
+            (
+                session["username"],
+            )
+        ).fetchall()
+
+
+    elif session["role"] == "faculty":
+
+        rows = connection.execute(
+            """
+            SELECT
+                a.*,
+                s.course,
+                s.room
+
+            FROM attendance a
+
+            JOIN sessions s
+            ON s.id = a.session_id
+
+            WHERE s.faculty_username = ?
+
+            ORDER BY a.id DESC
+            """,
+            (
+                session["username"],
+            )
+        ).fetchall()
+
+
+    else:
+
+        rows = connection.execute(
+            """
+            SELECT
+                a.*,
+                s.course,
+                s.room
+
+            FROM attendance a
+
+            JOIN sessions s
+            ON s.id = a.session_id
+
+            ORDER BY a.id DESC
+            """
+        ).fetchall()
+
+
+    connection.close()
+
+
+    return render_template(
+        "attendance.html",
+        rows=rows
+    )
+
+
+# ============================================================
+# INTEGRITY VERIFICATION
+# ============================================================
 
 @app.route("/verify")
 def verify():
 
+    if "username" not in session:
+
+        return redirect(
+            url_for("login")
+        )
+
+
     connection = get_db()
 
-    records = connection.execute(
+
+    rows = connection.execute(
         """
         SELECT
             a.*,
@@ -794,7 +1412,9 @@ def verify():
         """
     ).fetchall()
 
+
     connection.close()
+
 
     previous_hash = "GENESIS"
 
@@ -802,7 +1422,9 @@ def verify():
 
     chain_valid = True
 
-    for record in records:
+
+    for record in rows:
+
 
         expected_hash = create_record_hash(
             record["session_id"],
@@ -812,21 +1434,25 @@ def verify():
             record["previous_hash"]
         )
 
-        previous_link_valid = (
+
+        previous_valid = (
             record["previous_hash"]
             ==
             previous_hash
         )
+
 
         hash_valid = hmac.compare_digest(
             record["record_hash"],
             expected_hash
         )
 
+
         record_valid = (
-            previous_link_valid
+            previous_valid
             and hash_valid
         )
+
 
         checked_records.append(
             (
@@ -835,70 +1461,46 @@ def verify():
             )
         )
 
+
         if not record_valid:
 
             chain_valid = False
+
 
         previous_hash = (
             record["record_hash"]
         )
 
+
     return render_template(
         "verify.html",
+
         checked=checked_records,
+
         valid=chain_valid
     )
 
 
-# =========================================================
-# ATTENDANCE RECORDS
-# =========================================================
-
-@app.route("/attendance")
-def attendance():
-
-    connection = get_db()
-
-    records = connection.execute(
-        """
-        SELECT
-            a.*,
-            s.course,
-            s.room
-
-        FROM attendance a
-
-        JOIN sessions s
-        ON s.id = a.session_id
-
-        ORDER BY a.id DESC
-        """
-    ).fetchall()
-
-    connection.close()
-
-    return render_template(
-        "attendance.html",
-        rows=records
-    )
-
-
-# =========================================================
+# ============================================================
 # INITIALIZE DATABASE
-# IMPORTANT FOR RENDER / GUNICORN
-# =========================================================
+# ============================================================
+#
+# IMPORTANT:
+# This runs when Flask/Gunicorn imports the application.
+# Therefore Render will also create the tables/users.
+#
 
 init_db()
 
 
-# =========================================================
-# LOCAL DEVELOPMENT
-# =========================================================
+# ============================================================
+# LOCAL SERVER
+# ============================================================
 
 if __name__ == "__main__":
 
     app.run(
-        debug=True,
         host="0.0.0.0",
-        port=5000
+        port=5000,
+        debug=True
     )
