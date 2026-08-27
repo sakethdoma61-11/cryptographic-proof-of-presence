@@ -5,220 +5,110 @@
 <div class="head">
 
     <div>
-
-        <span class="pill">
-            {{ role|upper }} CONTROL CENTER
-        </span>
+        <span class="pill">FACULTY CONTROL CENTER</span>
 
         <h1>
             Welcome, {{ session["name"] }} 👋
         </h1>
 
         <p>
-            Manage secure cryptographic attendance.
+            Manage attendance, students and learning materials.
         </p>
-
     </div>
 
     <div class="online">
-        ● SYSTEM PROTECTED
+        ● SYSTEM SECURE
     </div>
 
 </div>
 
 
-<!-- =====================================================
-     STATISTICS
-===================================================== -->
+<!-- =========================================================
+     MAIN STATISTICS
+========================================================= -->
 
 <div class="metrics">
 
     <div class="metric">
-
-        <small>
-            Attendance Proofs
-        </small>
-
-        <b>
-            {{ total }}
-        </b>
-
+        <small>Total Students</small>
+        <b>{{ student_count }}</b>
     </div>
 
-
     <div class="metric">
-
-        <small>
-            Unique Students
-        </small>
-
-        <b>
-            {{ unique }}
-        </b>
-
+        <small>Total Attendance</small>
+        <b>{{ total }}</b>
     </div>
 
-
     <div class="metric">
-
-        <small>
-            Assigned Students
-        </small>
-
-        <b>
-            {{ student_count }}
-        </b>
-
+        <small>Students Present</small>
+        <b>{{ unique }}</b>
     </div>
 
-
     <div class="metric">
-
-        <small>
-            Security
-        </small>
-
-        <b class="good">
-            VERIFIED
-        </b>
-
+        <small>Total Sessions</small>
+        <b>{{ session_count }}</b>
     </div>
 
 </div>
 
 
-<!-- =====================================================
-     MAIN GRID
-===================================================== -->
+<!-- =========================================================
+     QUICK ACTIONS
+========================================================= -->
 
 <div class="grid">
 
-
-    <!-- CREATE QR -->
-
     <div class="card">
 
-        <span class="pill">
-            SECURE ATTENDANCE
-        </span>
+        <span class="pill">ATTENDANCE</span>
 
         <h2>
-            Create Dynamic QR
+            Create Secure QR
         </h2>
 
         <p>
-            Generate a cryptographically signed
-            attendance session.
+            Generate a cryptographically signed attendance
+            session for your students.
         </p>
 
-
-        <form
-            method="POST"
-            action="{{ url_for('create_session') }}"
+        <a
+            href="{{ url_for('create_session') }}"
+            class="btn full"
         >
-
-            <label>
-                Course
-            </label>
-
-            <input
-                type="text"
-                name="course"
-                placeholder="Cryptography"
-                required
-            >
-
-
-            <label>
-                Room
-            </label>
-
-            <input
-                type="text"
-                name="room"
-                placeholder="Lab 1"
-                required
-            >
-
-
-            <label>
-                QR Expiry
-            </label>
-
-            <select name="minutes">
-
-                <option value="2">
-                    2 Minutes
-                </option>
-
-                <option value="5" selected>
-                    5 Minutes
-                </option>
-
-                <option value="10">
-                    10 Minutes
-                </option>
-
-                <option value="15">
-                    15 Minutes
-                </option>
-
-            </select>
-
-
-            <br><br>
-
-            <button
-                type="submit"
-                class="btn full"
-            >
-                Generate Secure QR ✦
-            </button>
-
-        </form>
+            🔐 Create Attendance Session
+        </a>
 
     </div>
 
 
-    <!-- STUDENT LIST -->
-
     <div class="card">
 
-        <span class="pill">
-            STUDENT MANAGEMENT
-        </span>
+        <span class="pill">ACADEMICS</span>
 
         <h2>
-            Students under Nithisha
+            Study Materials
         </h2>
 
         <p>
-            30 registered students
+            Upload notes, presentations, assignments and
+            reference materials for your students.
         </p>
 
-
-        <div class="students">
-
-            {% for student in students %}
-
-                <span>
-
-                    {{ student["username"] }}
-
-                </span>
-
-            {% endfor %}
-
-        </div>
+        <a
+            href="{{ url_for('materials') }}"
+            class="btn full"
+        >
+            📚 Manage Study Materials
+        </a>
 
     </div>
 
 </div>
 
 
-<!-- =====================================================
-     RECENT ATTENDANCE
-===================================================== -->
+<!-- =========================================================
+     STUDENT OVERVIEW
+========================================================= -->
 
 <div class="card">
 
@@ -227,21 +117,18 @@
         <div>
 
             <span class="pill">
-                LIVE RECORDS
+                STUDENTS
             </span>
 
             <h2>
-                Recent Attendance
+                Student Overview
             </h2>
 
         </div>
 
-        <a
-            href="{{ url_for('attendance') }}"
-            class="btn"
-        >
-            View All
-        </a>
+        <span class="online">
+            {{ student_count }} REGISTERED
+        </span>
 
     </div>
 
@@ -259,6 +146,119 @@
                     </th>
 
                     <th>
+                        Name
+                    </th>
+
+                    <th>
+                        Faculty
+                    </th>
+
+                    <th>
+                        Status
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for student in students %}
+
+                <tr>
+
+                    <td>
+                        <strong>
+                            {{ student["username"] }}
+                        </strong>
+                    </td>
+
+                    <td>
+                        {{ student["name"] }}
+                    </td>
+
+                    <td>
+                        {{ student["faculty_username"] }}
+                    </td>
+
+                    <td>
+
+                        <span class="good">
+                            ✓ ACTIVE
+                        </span>
+
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="4">
+
+                        <div class="empty">
+
+                            <div>👨‍🎓</div>
+
+                            <h3>
+                                No students found
+                            </h3>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     RECENT ATTENDANCE
+========================================================= -->
+
+<div class="card">
+
+    <div class="section-title">
+
+        <div>
+
+            <span class="pill">
+                LIVE ATTENDANCE
+            </span>
+
+            <h2>
+                Recent Attendance Records
+            </h2>
+
+        </div>
+
+    </div>
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        Student
+                    </th>
+
+                    <th>
                         Course
                     </th>
 
@@ -267,7 +267,7 @@
                     </th>
 
                     <th>
-                        Time
+                        Timestamp
                     </th>
 
                     <th>
@@ -306,7 +306,7 @@
                     <td>
 
                         <span class="good">
-                            ✓ VALID
+                            ✓ VERIFIED
                         </span>
 
                     </td>
@@ -321,17 +321,15 @@
 
                         <div class="empty">
 
-                            <div>
-                                🔐
-                            </div>
+                            <div>📊</div>
 
                             <h3>
                                 No attendance records yet
                             </h3>
 
                             <p>
-                                Generate a QR session to
-                                start recording attendance.
+                                Attendance records will appear
+                                here after students scan the QR.
                             </p>
 
                         </div>
@@ -351,12 +349,135 @@
 </div>
 
 
-<!-- =====================================================
-     SECURITY INFORMATION
-===================================================== -->
+<!-- =========================================================
+     RECENT SESSIONS
+========================================================= -->
+
+<div class="card">
+
+    <div class="section-title">
+
+        <div>
+
+            <span class="pill">
+                SESSIONS
+            </span>
+
+            <h2>
+                Recent Attendance Sessions
+            </h2>
+
+        </div>
+
+    </div>
+
+
+    <div class="table-container">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        Course
+                    </th>
+
+                    <th>
+                        Room
+                    </th>
+
+                    <th>
+                        Created
+                    </th>
+
+                    <th>
+                        Expiry
+                    </th>
+
+                    <th>
+                        Action
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for s in sessions %}
+
+                <tr>
+
+                    <td>
+                        <strong>
+                            {{ s["course"] }}
+                        </strong>
+                    </td>
+
+                    <td>
+                        {{ s["room"] }}
+                    </td>
+
+                    <td>
+                        {{ s["created_at"] }}
+                    </td>
+
+                    <td>
+                        {{ s["expires_at"] }}
+                    </td>
+
+                    <td>
+
+                        <a
+                            href="{{ url_for('qr_page', session_id=s['id']) }}"
+                            class="btn small"
+                        >
+                            🔳 View QR
+                        </a>
+
+                    </td>
+
+                </tr>
+
+                {% else %}
+
+                <tr>
+
+                    <td colspan="5">
+
+                        <div class="empty">
+
+                            <div>🔳</div>
+
+                            <h3>
+                                No sessions created
+                            </h3>
+
+                        </div>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SECURITY SECTION
+========================================================= -->
 
 <div class="grid">
-
 
     <div class="card security-card">
 
@@ -367,12 +488,12 @@
         <div>
 
             <h3>
-                HMAC-SHA256 Protected
+                Cryptographic Attendance
             </h3>
 
             <p>
-                Every attendance session uses a
-                cryptographically signed token.
+                Attendance records use HMAC-SHA256 proofs
+                and hash chaining for tamper detection.
             </p>
 
         </div>
@@ -383,18 +504,18 @@
     <div class="card security-card">
 
         <div class="security-icon">
-            🛡️
+            📚
         </div>
 
         <div>
 
             <h3>
-                Tamper-Evident Ledger
+                Secure Learning Materials
             </h3>
 
             <p>
-                Attendance records are connected using
-                a SHA-256 hash chain.
+                Uploaded materials are protected with
+                SHA-256 integrity fingerprints.
             </p>
 
         </div>

@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="head">
+
+    <div>
+
+        <span class="pill">
+            STUDY MATERIALS
+        </span>
+
+        <h1>
+            📚 Academic Materials
+        </h1>
+
+        <p>
+            Secure faculty-to-student study material sharing.
+        </p>
+
+    </div>
+
+    <div class="online">
+        ● SHA-256 PROTECTED
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     UPLOAD MATERIAL
+========================================================= -->
+
+{% if session.get("role") in ["faculty", "admin"] %}
+
+<div class="card material-upload-card">
+
+    <span class="pill">
+        FACULTY CONTROL
+    </span>
+
+    <h2>
+        Upload Study Material
+    </h2>
+
+    <p>
+        Upload academic material for your students.
+        SHA-256 integrity protection is generated automatically.
+    </p>
+
+
+    <form
+        method="POST"
+        action="{{ url_for('upload_material') }}"
+        enctype="multipart/form-data"
+        class="material-form"
+    >
+
+        <label for="title">
+            Material Title
+        </label>
+
+        <input
+            type="text"
+            id="title"
+            name="title"
+            placeholder="Cryptography Unit 1 Notes"
+            required
+        >
+
+
+        <label for="description">
+            Description
+        </label>
+
+        <textarea
+            id="description"
+            name="description"
+            rows="4"
+            placeholder="Introduction to cryptography..."
+        ></textarea>
+
+
+        <label for="material">
+            Select File
+        </label>
+
+        <!-- IMPORTANT:
+             Python expects request.files["material"]
+        -->
+
+        <input
+            type="file"
+            id="material"
+            name="material"
+            accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.zip"
+            required
+        >
+
+        <small class="file-help">
+            Supported:
+            PDF, PPT, PPTX, DOC, DOCX, TXT and ZIP
+        </small>
+
+
+        <button
+            type="submit"
+            class="btn full material-upload-btn"
+        >
+            📤 Upload & Generate SHA-256
+        </button>
+
+    </form>
+
+</div>
+
+{% endif %}
+
+
+<!-- =========================================================
+     MATERIAL LIBRARY
+========================================================= -->
+
+<div class="card">
+
+    <div class="section-title">
+
+        <div>
+
+            <span class="pill">
+                MATERIAL LIBRARY
+            </span>
+
+            <h2>
+                Available Study Materials
+            </h2>
+
+        </div>
+
+
+        <input
+            type="text"
+            id="materialSearch"
+            class="search-box"
+            placeholder="Search materials..."
+        >
+
+    </div>
+
+
+    <div class="materials-grid">
+
+        {% for material in materials %}
+
+        <div
+            class="material-card"
+            data-title="{{ material['title'] }}"
+        >
+
+            <!-- FILE ICON -->
+
+            <div class="material-top">
+
+                <div class="material-icon">
+
+                    {% set filename =
+                        material["filename"].lower()
+                    %}
+
+                    {% if filename.endswith(".pdf") %}
+
+                        📕
+                    
+                    {% elif
+                        filename.endswith(".ppt")
+                        or filename.endswith(".pptx")
+                    %}
+
+                        📊
+
+                    {% elif
+                        filename.endswith(".doc")
+                        or filename.endswith(".docx")
+                    %}
+
+                        📘
+
+                    {% elif filename.endswith(".zip") %}
+
+                        🗜️
+
+                    {% else %}
+
+                        📄
+
+                    {% endif %}
+
+                </div>
+
+
+                <span class="material-category">
+                    STUDY MATERIAL
+                </span>
+
+            </div>
+
+
+            <!-- TITLE -->
+
+            <h3>
+                {{ material["title"] }}
+            </h3>
+
+
+            <!-- DESCRIPTION -->
+
+            <p class="material-description">
+
+                {% if material["description"] %}
+
+                    {{ material["description"] }}
+
+                {% else %}
+
+                    No description provided.
+
+                {% endif %}
+
+            </p>
+
+
+            <!-- FILE DETAILS -->
+
+            <div class="material-info">
+
+                <div>
+                    📎
+                    {{ material["filename"] }}
+                </div>
+
+                <div>
+                    📅
+                    {{ material["uploaded_at"] }}
+                </div>
+
+                <div>
+                    👤
+                    {{ material["faculty_username"] }}
+                </div>
+
+            </div>
+
+
+            <!-- SHA-256 -->
+
+            <div class="material-hash">
+
+                <small>
+                    🔐 SHA-256
+                </small>
+
+                <code>
+                    {{ material["file_hash"] }}
+                </code>
+
+            </div>
+
+
+            <!-- BUTTONS -->
+
+            <div class="material-actions">
+
+                <a
+                    href="{{ url_for(
+                        'download_material',
+                        material_id=material['id']
+                    ) }}"
+                    class="btn"
+                >
+                    ⬇️ Download
+                </a>
+
+
+                <a
+                    href="{{ url_for(
+                        'verify_material',
+                        material_id=material['id']
+                    ) }}"
+                    class="btn secondary-btn"
+                >
+                    🔐 Verify
+                </a>
+
+
+                {% if
+                    session.get("role") == "faculty"
+                    and material["faculty_username"]
+                    == session.get("username")
+                %}
+
+                <form
+                    method="POST"
+                    action="{{ url_for(
+                        'delete_material',
+                        material_id=material['id']
+                    ) }}"
+                    onsubmit="
+                        return confirm(
+                            'Are you sure you want to delete this material?'
+                        );
+                    "
+                >
+
+                    <button
+                        type="submit"
+                        class="delete-btn"
+                        title="Delete"
+                    >
+                        🗑️
+                    </button>
+
+                </form>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+
+        {% else %}
+
+        <div class="empty material-empty">
+
+            <div>
+                📚
+            </div>
+
+            <h3>
+                No study materials available
+            </h3>
+
+            <p>
+                Faculty materials will appear here after upload.
+            </p>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SECURITY INFORMATION
+========================================================= -->
+
+<div class="grid">
+
+    <div class="card security-card">
+
+        <div class="security-icon">
+            🔐
+        </div>
+
+        <div>
+
+            <h3>
+                SHA-256 File Integrity
+            </h3>
+
+            <p>
+                Every uploaded file receives a unique
+                SHA-256 cryptographic fingerprint.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="card security-card">
+
+        <div class="security-icon">
+            🛡️
+        </div>
+
+        <div>
+
+            <h3>
+                Tamper Detection
+            </h3>
+
+            <p>
+                Verify the file later against its original
+                SHA-256 fingerprint.
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SEARCH
+========================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const search =
+            document.getElementById(
+                "materialSearch"
+            );
+
+        if (!search) {
+            return;
+        }
+
+
+        const cards =
+            document.querySelectorAll(
+                ".material-card"
+            );
+
+
+        search.addEventListener(
+            "input",
+            function () {
+
+                const value =
+                    search.value
+                    .toLowerCase()
+                    .trim();
+
+
+                cards.forEach(
+                    function (card) {
+
+                        const text =
+                            card.textContent
+                            .toLowerCase();
+
+
+                        if (
+                            text.includes(value)
+                        ) {
+
+                            card.style.display =
+                                "";
+
+                        } else {
+
+                            card.style.display =
+                                "none";
+
+                        }
+
+                    }
+                );
+
+            }
+        );
+
+    }
+);
+
+</script>
+
+
+{% endblock %}

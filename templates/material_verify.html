@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div class="head">
+
+    <div>
+
+        <span class="pill">
+            SECURITY VERIFICATION
+        </span>
+
+        <h1>
+            🔐 File Integrity Verification
+        </h1>
+
+        <p>
+            Verify that your downloaded study material has not been modified.
+        </p>
+
+    </div>
+
+    <div class="online">
+        ● SHA-256 ACTIVE
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     MATERIAL INFORMATION
+========================================================= -->
+
+<div class="card">
+
+    <span class="pill">
+        MATERIAL DETAILS
+    </span>
+
+    <h2>
+        {{ material["title"] }}
+    </h2>
+
+    <div class="material-info">
+
+        <div>
+            📎
+            <strong>File:</strong>
+            {{ material["filename"] }}
+        </div>
+
+        <div>
+            👤
+            <strong>Faculty:</strong>
+            {{ material["faculty_username"] }}
+        </div>
+
+        <div>
+            📅
+            <strong>Uploaded:</strong>
+            {{ material["uploaded_at"] }}
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     ORIGINAL HASH
+========================================================= -->
+
+<div class="card">
+
+    <span class="pill">
+        ORIGINAL FINGERPRINT
+    </span>
+
+    <h2>
+        SHA-256 Hash
+    </h2>
+
+    <p>
+        This is the original cryptographic fingerprint generated
+        when the faculty uploaded the material.
+    </p>
+
+
+    <div class="hash-display">
+
+        <code id="originalHash">
+            {{ material["file_hash"] }}
+        </code>
+
+        <button
+            type="button"
+            class="btn"
+            id="copyHash"
+        >
+            📋 Copy
+        </button>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     FILE VERIFICATION
+========================================================= -->
+
+<div class="card">
+
+    <span class="pill">
+        VERIFY DOWNLOADED FILE
+    </span>
+
+    <h2>
+        🔍 Select Your Downloaded File
+    </h2>
+
+    <p>
+        Select the file you downloaded from this system.
+        Your browser will calculate its SHA-256 hash locally.
+        The file is not uploaded anywhere.
+    </p>
+
+
+    <div class="verify-box">
+
+        <input
+            type="file"
+            id="verifyFile"
+        >
+
+
+        <button
+            type="button"
+            class="btn full"
+            id="verifyButton"
+        >
+            🔐 Verify SHA-256
+        </button>
+
+    </div>
+
+
+    <!-- =====================================================
+         VERIFICATION RESULT
+    ===================================================== -->
+
+    <div
+        id="verificationResult"
+        class="verification-result"
+        style="display:none;"
+    >
+
+        <div
+            id="verificationIcon"
+            class="verification-icon"
+        >
+            🔐
+        </div>
+
+
+        <h2 id="verificationTitle">
+            Checking...
+        </h2>
+
+
+        <p id="verificationMessage">
+            Calculating SHA-256...
+        </p>
+
+
+        <div class="hash-comparison">
+
+            <div>
+
+                <small>
+                    Original SHA-256
+                </small>
+
+                <code id="resultOriginalHash">
+                </code>
+
+            </div>
+
+
+            <div>
+
+                <small>
+                    Selected File SHA-256
+                </small>
+
+                <code id="resultFileHash">
+                </code>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     SECURITY EXPLANATION
+========================================================= -->
+
+<div class="grid">
+
+    <div class="card security-card">
+
+        <div class="security-icon">
+            🛡️
+        </div>
+
+        <div>
+
+            <h3>
+                Tamper Detection
+            </h3>
+
+            <p>
+                Even a small modification to the file produces
+                a completely different SHA-256 fingerprint.
+            </p>
+
+        </div>
+
+    </div>
+
+
+    <div class="card security-card">
+
+        <div class="security-icon">
+            🔒
+        </div>
+
+        <div>
+
+            <h3>
+                Client-Side Verification
+            </h3>
+
+            <p>
+                The selected file is processed locally in your
+                browser using the Web Crypto API.
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     JAVASCRIPT SHA-256 VERIFICATION
+========================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+
+        const fileInput =
+            document.getElementById(
+                "verifyFile"
+            );
+
+
+        const verifyButton =
+            document.getElementById(
+                "verifyButton"
+            );
+
+
+        const originalHashElement =
+            document.getElementById(
+                "originalHash"
+            );
+
+
+        const result =
+            document.getElementById(
+                "verificationResult"
+            );
+
+
+        const icon =
+            document.getElementById(
+                "verificationIcon"
+            );
+
+
+        const title =
+            document.getElementById(
+                "verificationTitle"
+            );
+
+
+        const message =
+            document.getElementById(
+                "verificationMessage"
+            );
+
+
+        const resultOriginal =
+            document.getElementById(
+                "resultOriginalHash"
+            );
+
+
+        const resultFile =
+            document.getElementById(
+                "resultFileHash"
+            );
+
+
+        const copyButton =
+            document.getElementById(
+                "copyHash"
+            );
+
+
+        /*
+         * =====================================================
+         * COPY ORIGINAL HASH
+         * =====================================================
+         */
+
+        if (copyButton) {
+
+            copyButton.addEventListener(
+                "click",
+                async function () {
+
+                    const hash =
+                        originalHashElement
+                        .textContent
+                        .trim();
+
+
+                    try {
+
+                        await navigator.clipboard.writeText(
+                            hash
+                        );
+
+                        copyButton.textContent =
+                            "✓ Copied";
+
+                        setTimeout(
+                            function () {
+
+                                copyButton.textContent =
+                                    "📋 Copy";
+
+                            },
+                            1500
+                        );
+
+                    } catch (error) {
+
+                        alert(
+                            "Unable to copy hash."
+                        );
+
+                    }
+
+                }
+            );
+
+        }
+
+
+        /*
+         * =====================================================
+         * VERIFY FILE
+         * =====================================================
+         */
+
+        verifyButton.addEventListener(
+            "click",
+            async function () {
+
+
+                if (
+                    !fileInput.files ||
+                    fileInput.files.length === 0
+                ) {
+
+                    alert(
+                        "Please select the downloaded file first."
+                    );
+
+                    return;
+
+                }
+
+
+                const file =
+                    fileInput.files[0];
+
+
+                const originalHash =
+                    originalHashElement
+                    .textContent
+                    .trim()
+                    .toLowerCase();
+
+
+                /*
+                 * SHOW RESULT AREA
+                 */
+
+                result.style.display =
+                    "block";
+
+
+                icon.textContent =
+                    "⏳";
+
+
+                title.textContent =
+                    "Verifying File...";
+
+
+                message.textContent =
+                    "Calculating SHA-256 fingerprint. Please wait.";
+
+
+                resultOriginal.textContent =
+                    originalHash;
+
+
+                resultFile.textContent =
+                    "Calculating...";
+
+
+                verifyButton.disabled =
+                    true;
+
+
+                try {
+
+
+                    /*
+                     * READ FILE
+                     */
+
+                    const buffer =
+                        await file.arrayBuffer();
+
+
+                    /*
+                     * CALCULATE SHA-256
+                     */
+
+                    const hashBuffer =
+                        await crypto.subtle.digest(
+                            "SHA-256",
+                            buffer
+                        );
+
+
+                    /*
+                     * CONVERT HASH TO HEX
+                     */
+
+                    const hashArray =
+                        Array.from(
+                            new Uint8Array(
+                                hashBuffer
+                            )
+                        );
+
+
+                    const calculatedHash =
+                        hashArray
+                        .map(
+                            function (byte) {
+
+                                return byte
+                                    .toString(16)
+                                    .padStart(
+                                        2,
+                                        "0"
+                                    );
+
+                            }
+                        )
+                        .join("");
+
+
+                    resultFile.textContent =
+                        calculatedHash;
+
+
+                    /*
+                     * COMPARE
+                     */
+
+                    if (
+                        calculatedHash ===
+                        originalHash
+                    ) {
+
+
+                        /*
+                         * VERIFIED
+                         */
+
+                        icon.textContent =
+                            "✅";
+
+
+                        title.textContent =
+                            "FILE VERIFIED";
+
+
+                        message.textContent =
+                            "SHA-256 MATCH — The downloaded file is authentic and has not been modified.";
+
+
+                        result.classList.remove(
+                            "verification-failed"
+                        );
+
+
+                        result.classList.add(
+                            "verification-success"
+                        );
+
+
+                    } else {
+
+
+                        /*
+                         * FAILED
+                         */
+
+                        icon.textContent =
+                            "❌";
+
+
+                        title.textContent =
+                            "VERIFICATION FAILED";
+
+
+                        message.textContent =
+                            "SHA-256 MISMATCH — The selected file is different from the original uploaded file.";
+
+
+                        result.classList.remove(
+                            "verification-success"
+                        );
+
+
+                        result.classList.add(
+                            "verification-failed"
+                        );
+
+                    }
+
+
+                } catch (error) {
+
+
+                    icon.textContent =
+                        "⚠️";
+
+
+                    title.textContent =
+                        "VERIFICATION ERROR";
+
+
+                    message.textContent =
+                        "Unable to calculate the SHA-256 fingerprint of this file.";
+
+
+                    result.classList.add(
+                        "verification-failed"
+                    );
+
+                }
+
+
+                verifyButton.disabled =
+                    false;
+
+            }
+        );
+
+    }
+);
+
+</script>
+
+
+{% endblock %}

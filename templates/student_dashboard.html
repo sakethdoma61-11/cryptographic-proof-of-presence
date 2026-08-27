@@ -7,39 +7,36 @@
     <div>
 
         <span class="pill">
-            STUDENT PORTAL
+            STUDENT CONTROL CENTER
         </span>
 
         <h1>
-            Hello, {{ student["name"] }} 👋
+            Welcome, {{ student["name"] }} 👋
         </h1>
 
         <p>
-            Student ID:
-            <strong>{{ student["username"] }}</strong>
-            &nbsp; • &nbsp;
-            Faculty: Nithisha
+            Your personal attendance and academic dashboard.
         </p>
 
     </div>
 
     <div class="online">
-        ● ACCOUNT VERIFIED
+        ● ACCOUNT SECURE
     </div>
 
 </div>
 
 
-<!-- =====================================================
+<!-- =========================================================
      STUDENT STATISTICS
-===================================================== -->
+========================================================= -->
 
 <div class="metrics">
 
     <div class="metric">
 
         <small>
-            Attendance Percentage
+            Attendance
         </small>
 
         <b>
@@ -52,7 +49,7 @@
     <div class="metric">
 
         <small>
-            Classes Present
+            Present
         </small>
 
         <b>
@@ -78,11 +75,11 @@
     <div class="metric">
 
         <small>
-            Security Status
+            Student ID
         </small>
 
-        <b class="good">
-            VERIFIED
+        <b>
+            {{ student["username"] }}
         </b>
 
     </div>
@@ -90,133 +87,184 @@
 </div>
 
 
-<!-- =====================================================
-     STUDENT PROFILE
-===================================================== -->
+<!-- =========================================================
+     ATTENDANCE
+========================================================= -->
 
 <div class="grid">
+
 
     <div class="card">
 
         <span class="pill">
-            STUDENT PROFILE
+            MY ATTENDANCE
         </span>
 
         <h2>
-            {{ student["name"] }}
+            Attendance Percentage
         </h2>
 
-        <div class="profile-row">
 
-            <span>
-                Student ID
-            </span>
+        <div class="student-big-percentage">
+            {{ percentage }}%
+        </div>
 
-            <strong>
-                {{ student["username"] }}
-            </strong>
+
+        <div class="progress">
+
+            <div
+                class="progress-bar"
+                id="studentProgress"
+                data-percentage="{{ percentage }}"
+            ></div>
 
         </div>
 
 
-        <div class="profile-row">
+        {% if percentage >= 75 %}
 
-            <span>
-                Department
-            </span>
+            <p>
+                🟢 You are maintaining good attendance.
+            </p>
 
-            <strong>
-                AI & ML
-            </strong>
+        {% elif percentage >= 50 %}
 
-        </div>
+            <p>
+                🟡 Your attendance needs improvement.
+            </p>
 
+        {% else %}
 
-        <div class="profile-row">
+            <p>
+                🔴 Your attendance is below the recommended level.
+            </p>
 
-            <span>
-                Faculty
-            </span>
-
-            <strong>
-                Nithisha
-            </strong>
-
-        </div>
-
-
-        <div class="profile-row">
-
-            <span>
-                Account Status
-            </span>
-
-            <strong class="good">
-                ACTIVE
-            </strong>
-
-        </div>
+        {% endif %}
 
     </div>
 
 
-    <!-- SECURITY CARD -->
+    <!-- =====================================================
+         STANDING
+    ===================================================== -->
 
     <div class="card">
 
         <span class="pill">
-            CRYPTOGRAPHIC SECURITY
+            CURRENT STANDING
         </span>
 
         <h2>
-            Your Attendance is Protected
+            Attendance Status
+        </h2>
+
+
+        {% if percentage >= 75 %}
+
+            <div class="standing good-standing">
+                🟢 GOOD STANDING
+            </div>
+
+            <p>
+                Keep maintaining your attendance.
+            </p>
+
+
+        {% elif percentage >= 50 %}
+
+            <div class="standing average-standing">
+                🟡 AVERAGE
+            </div>
+
+            <p>
+                Try to attend more sessions.
+            </p>
+
+
+        {% else %}
+
+            <div class="standing low-standing">
+                🔴 LOW ATTENDANCE
+            </div>
+
+            <p>
+                Your attendance requires improvement.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     QUICK ACTIONS
+========================================================= -->
+
+<div class="grid">
+
+
+    <!-- STUDY MATERIALS -->
+
+    <div class="card">
+
+        <span class="pill">
+            ACADEMICS
+        </span>
+
+        <h2>
+            Study Materials
         </h2>
 
         <p>
-            Every attendance entry is protected using
-            cryptographic verification and a tamper-evident
-            SHA-256 hash chain.
+            Access notes, presentations, assignments and
+            reference materials uploaded by your faculty.
         </p>
 
 
-        <div class="security-item">
+        <a
+            href="{{ url_for('materials') }}"
+            class="btn full"
+        >
+            📚 Open Study Materials
+        </a>
 
-            <span class="security-icon">
-                🔐
-            </span>
-
-            <div>
-
-                <strong>
-                    HMAC-SHA256
-                </strong>
-
-                <small>
-                    Attendance proof authentication
-                </small>
-
-            </div>
-
-        </div>
+    </div>
 
 
-        <div class="security-item">
+    <!-- ATTENDANCE -->
 
-            <span class="security-icon">
-                🛡️
-            </span>
+    <div class="card">
 
-            <div>
+        <span class="pill">
+            ATTENDANCE
+        </span>
 
-                <strong>
-                    SHA-256 Hash Chain
-                </strong>
+        <h2>
+            Secure QR Attendance
+        </h2>
 
-                <small>
-                    Tamper detection
-                </small>
+        <p>
+            Scan the active faculty QR code with your phone
+            to securely record your attendance.
+        </p>
 
-            </div>
+
+        <div class="attendance-info-box">
+
+            📱
+
+            <strong>
+                Scan the faculty QR code
+            </strong>
+
+            <br>
+
+            <small>
+                The QR code automatically opens the secure
+                attendance verification page.
+            </small>
 
         </div>
 
@@ -225,9 +273,9 @@
 </div>
 
 
-<!-- =====================================================
+<!-- =========================================================
      ATTENDANCE HISTORY
-===================================================== -->
+========================================================= -->
 
 <div class="card">
 
@@ -240,17 +288,10 @@
             </span>
 
             <h2>
-                My Attendance
+                My Recent Attendance
             </h2>
 
         </div>
-
-        <a
-            href="{{ url_for('attendance') }}"
-            class="btn"
-        >
-            View Records
-        </a>
 
     </div>
 
@@ -272,11 +313,7 @@
                     </th>
 
                     <th>
-                        Date
-                    </th>
-
-                    <th>
-                        Time
+                        Date & Time
                     </th>
 
                     <th>
@@ -295,11 +332,9 @@
                 <tr>
 
                     <td>
-
                         <strong>
                             {{ row["course"] }}
                         </strong>
-
                     </td>
 
 
@@ -309,35 +344,31 @@
 
 
                     <td>
-                        {{ row["timestamp"][:10] }}
-                    </td>
-
-
-                    <td>
-                        {{ row["timestamp"][11:19] }}
+                        {{ row["timestamp"] }}
                     </td>
 
 
                     <td>
 
                         <span class="good">
-                            ✓ CRYPTOGRAPHICALLY VERIFIED
+                            ✓ VERIFIED
                         </span>
 
                     </td>
 
                 </tr>
 
+
                 {% else %}
 
                 <tr>
 
-                    <td colspan="5">
+                    <td colspan="4">
 
                         <div class="empty">
 
                             <div>
-                                📋
+                                📅
                             </div>
 
                             <h3>
@@ -345,9 +376,8 @@
                             </h3>
 
                             <p>
-                                Your attendance records
-                                will appear here after you
-                                attend a class.
+                                Your attendance history will
+                                appear here after you attend a session.
                             </p>
 
                         </div>
@@ -367,135 +397,98 @@
 </div>
 
 
-<!-- =====================================================
-     HOW ATTENDANCE WORKS
-===================================================== -->
+<!-- =========================================================
+     SECURITY FEATURES
+========================================================= -->
 
-<div class="card">
-
-    <span class="pill">
-        HOW IT WORKS
-    </span>
-
-    <h2>
-        Mark Your Attendance
-    </h2>
+<div class="grid">
 
 
-    <div class="steps">
+    <div class="card security-card">
 
-        <div class="step">
+        <div class="security-icon">
+            🔐
+        </div>
 
-            <span>
-                01
-            </span>
+        <div>
 
-            <div>
+            <h3>
+                Cryptographic Protection
+            </h3>
 
-                <strong>
-                    Faculty generates QR
-                </strong>
-
-                <p>
-                    Nithisha creates a time-limited
-                    cryptographic attendance session.
-                </p>
-
-            </div>
+            <p>
+                Attendance proofs are protected using
+                HMAC-SHA256 and cryptographic hash chaining.
+            </p>
 
         </div>
 
+    </div>
 
-        <div class="step">
 
-            <span>
-                02
-            </span>
+    <div class="card security-card">
 
-            <div>
-
-                <strong>
-                    Scan the QR
-                </strong>
-
-                <p>
-                    Scan the dynamic QR code displayed
-                    by the faculty.
-                </p>
-
-            </div>
-
+        <div class="security-icon">
+            📚
         </div>
 
+        <div>
 
-        <div class="step">
+            <h3>
+                Secure Learning Materials
+            </h3>
 
-            <span>
-                03
-            </span>
-
-            <div>
-
-                <strong>
-                    Submit Student ID
-                </strong>
-
-                <p>
-                    Enter your student ID to prove
-                    your identity.
-                </p>
-
-            </div>
-
-        </div>
-
-
-        <div class="step">
-
-            <span>
-                04
-            </span>
-
-            <div>
-
-                <strong>
-                    Cryptographic Verification
-                </strong>
-
-                <p>
-                    The server validates the signed
-                    attendance token.
-                </p>
-
-            </div>
-
-        </div>
-
-
-        <div class="step">
-
-            <span>
-                05
-            </span>
-
-            <div>
-
-                <strong>
-                    Attendance Recorded
-                </strong>
-
-                <p>
-                    Your attendance is added to the
-                    tamper-evident hash chain.
-                </p>
-
-            </div>
+            <p>
+                Faculty materials can be downloaded and
+                verified using SHA-256 integrity checking.
+            </p>
 
         </div>
 
     </div>
 
 </div>
+
+
+<!-- =========================================================
+     PROGRESS BAR
+========================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const progress =
+            document.getElementById(
+                "studentProgress"
+            );
+
+
+        if (progress) {
+
+            const value =
+                parseFloat(
+                    progress.dataset.percentage
+                ) || 0;
+
+
+            progress.style.width =
+                Math.max(
+                    0,
+                    Math.min(
+                        100,
+                        value
+                    )
+                ) + "%";
+
+        }
+
+    }
+);
+
+</script>
 
 
 {% endblock %}

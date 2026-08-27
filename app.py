@@ -21,6 +21,8 @@ from urllib.parse import urlencode
 
 import qrcode
 
+from werkzeug.utils import secure_filename
+
 
 # ============================================================
 # CONFIGURATION
@@ -34,6 +36,13 @@ app.secret_key = os.environ.get(
 )
 
 DB = "attendance.db"
+
+UPLOAD_FOLDER = os.path.join("static", "materials")
+ALLOWED_MATERIAL_EXTENSIONS = {
+    "pdf", "ppt", "pptx", "doc", "docx", "txt", "zip"
+}
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 MASTER_SECRET = os.environ.get(
     "MASTER_SECRET",
@@ -127,6 +136,27 @@ def init_db():
 
         );
 
+
+        CREATE TABLE IF NOT EXISTS materials (
+
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+            title TEXT NOT NULL,
+
+            description TEXT,
+
+            filename TEXT NOT NULL,
+
+            stored_filename TEXT NOT NULL,
+
+            file_hash TEXT NOT NULL,
+
+            uploaded_at TEXT NOT NULL,
+
+            faculty_username TEXT NOT NULL
+
+        );
+
     """)
 
 
@@ -217,30 +247,48 @@ def init_db():
             f"Student {number:02d}"
         )
 
+        # Student login password format:
+        # 23AIML001 -> student01@123
+        # 23AIML002 -> student02@123
+        # ...
+        # 23AIML030 -> student30@123
         student_password = (
-            f"Student@{number:03d}"
+            f"student{number:02d}@123"
         )
 
+        # Create the student if it does not exist.
         connection.execute(
             """
             INSERT OR IGNORE INTO users
-            (
-                name,
-                username,
-                password_hash,
-                role,
-                faculty_username
-            )
+            (name, username, password_hash, role, faculty_username)
             VALUES (?, ?, ?, ?, ?)
             """,
             (
                 student_name,
                 student_id,
-                hash_password(
-                    student_password
-                ),
+                hash_password(student_password),
                 "student",
                 "Nithisha"
+            )
+        )
+
+        # IMPORTANT: Always update existing student credentials.
+        # This preserves attendance/material records while making
+        # the new password take effect immediately.
+        connection.execute(
+            """
+            UPDATE users
+            SET name = ?,
+                password_hash = ?,
+                role = 'student',
+                faculty_username = ?
+            WHERE username = ?
+            """,
+            (
+                student_name,
+                hash_password(student_password),
+                "Nithisha",
+                student_id
             )
         )
 
@@ -453,260 +501,187 @@ def logout():
 def dashboard():
 
     if "username" not in session:
-
-        return redirect(
-            url_for("login")
-        )
-
+        return redirect(url_for("login"))
 
     role = session["role"]
-
     connection = get_db()
-
-
-    # ========================================================
-    # ADMIN / FACULTY
-    # ========================================================
 
     if role in ["admin", "faculty"]:
 
-
-        # ----------------------------------------------------
-        # STUDENTS
-        # ----------------------------------------------------
-
         if role == "faculty":
-
-            students = connection.execute(
-                """
-                SELECT *
-                FROM users
+            students = connection.execute("""
+                SELECT * FROM users
                 WHERE role = 'student'
                 AND faculty_username = ?
                 ORDER BY username
-                """,
-                (
-                    session["username"],
-                )
-            ).fetchall()
+            """, (session["username"],)).fetchall()
 
-
-            attendance_rows = connection.execute(
-                """
-                SELECT
-                    a.*,
-                    s.course,
-                    s.room
-
+            attendance_rows = connection.execute("""
+                SELECT a.*, s.course, s.room
                 FROM attendance a
-
-                JOIN sessions s
-                ON s.id = a.session_id
-
+                JOIN sessions s ON s.id = a.session_id
                 WHERE s.faculty_username = ?
-
                 ORDER BY a.id DESC
+                LIMIT 100
+            """, (session["username"],)).fetchall()
 
-                LIMIT 50
-                """,
-                (
-                    session["username"],
-                )
-            ).fetchall()
-
-
-            total_attendance = connection.execute(
-                """
+            total_attendance = connection.execute("""
                 SELECT COUNT(*) AS count
-
                 FROM attendance a
-
-                JOIN sessions s
-                ON s.id = a.session_id
-
+                JOIN sessions s ON s.id = a.session_id
                 WHERE s.faculty_username = ?
-                """,
-                (
-                    session["username"],
-                )
-            ).fetchone()["count"]
+            """, (session["username"],)).fetchone()["count"]
 
+            total_sessions = connection.execute("""
+                SELECT COUNT(*) AS count
+                FROM sessions
+                WHERE faculty_username = ?
+            """, (session["username"],)).fetchone()["count"]
 
         else:
-
-            students = connection.execute(
-                """
-                SELECT *
-                FROM users
+            students = connection.execute("""
+                SELECT * FROM users
                 WHERE role = 'student'
                 ORDER BY username
-                """
-            ).fetchall()
+            """).fetchall()
 
-
-            attendance_rows = connection.execute(
-                """
-                SELECT
-                    a.*,
-                    s.course,
-                    s.room
-
+            attendance_rows = connection.execute("""
+                SELECT a.*, s.course, s.room
                 FROM attendance a
-
-                JOIN sessions s
-                ON s.id = a.session_id
-
+                JOIN sessions s ON s.id = a.session_id
                 ORDER BY a.id DESC
+                LIMIT 100
+            """).fetchall()
 
-                LIMIT 50
-                """
-            ).fetchall()
+            total_attendance = connection.execute("""
+                SELECT COUNT(*) AS count FROM attendance
+            """).fetchone()["count"]
 
+            total_sessions = connection.execute("""
+                SELECT COUNT(*) AS count FROM sessions
+            """).fetchone()["count"]
 
-            total_attendance = connection.execute(
-                """
-                SELECT COUNT(*) AS count
-                FROM attendance
-                """
-            ).fetchone()["count"]
+        unique_students = len(set(row["student_id"] for row in attendance_rows))
 
+        student_analytics = []
+        for student in students:
+            student_id = student["username"]
+            present_count = sum(1 for row in attendance_rows if row["student_id"] == student_id)
+            percentage = round((present_count / total_sessions) * 100, 1) if total_sessions > 0 else 0
 
-        unique_students = len(
-            set(
-                row["student_id"]
-                for row in attendance_rows
-            )
-        )
+            if percentage >= 75:
+                status = "Good"
+            elif percentage >= 50:
+                status = "Average"
+            else:
+                status = "Low"
 
+            student_analytics.append({
+                "id": student_id,
+                "name": student["name"],
+                "present": present_count,
+                "total": total_sessions,
+                "percentage": percentage,
+                "status": status
+            })
 
-        total_sessions = connection.execute(
-            """
-            SELECT COUNT(*) AS count
-            FROM sessions
-            """
-        ).fetchone()["count"]
+        good_count = sum(1 for item in student_analytics if item["percentage"] >= 75)
+        average_count = sum(1 for item in student_analytics if 50 <= item["percentage"] < 75)
+        low_count = sum(1 for item in student_analytics if item["percentage"] < 50)
 
+        class_percentage = round(
+            sum(item["percentage"] for item in student_analytics) / len(student_analytics), 1
+        ) if student_analytics else 0
 
-        recent_sessions = connection.execute(
-            """
-            SELECT *
-            FROM sessions
-            ORDER BY id DESC
-            LIMIT 10
-            """
-        ).fetchall()
+        if role == "faculty":
+            course_rows = connection.execute("""
+                SELECT s.course, COUNT(a.id) AS attendance_count
+                FROM sessions s
+                LEFT JOIN attendance a ON a.session_id = s.id
+                WHERE s.faculty_username = ?
+                GROUP BY s.course
+                ORDER BY attendance_count DESC
+            """, (session["username"],)).fetchall()
 
+            recent_sessions = connection.execute("""
+                SELECT s.*, COUNT(a.id) AS attendance_count
+                FROM sessions s
+                LEFT JOIN attendance a ON a.session_id = s.id
+                WHERE s.faculty_username = ?
+                GROUP BY s.id
+                ORDER BY s.id DESC
+                LIMIT 20
+            """, (session["username"],)).fetchall()
+        else:
+            course_rows = connection.execute("""
+                SELECT s.course, COUNT(a.id) AS attendance_count
+                FROM sessions s
+                LEFT JOIN attendance a ON a.session_id = s.id
+                GROUP BY s.course
+                ORDER BY attendance_count DESC
+            """).fetchall()
+
+            recent_sessions = connection.execute("""
+                SELECT s.*, COUNT(a.id) AS attendance_count
+                FROM sessions s
+                LEFT JOIN attendance a ON a.session_id = s.id
+                GROUP BY s.id
+                ORDER BY s.id DESC
+                LIMIT 20
+            """).fetchall()
 
         connection.close()
 
-
         return render_template(
             "dashboard.html",
-
             role=role,
-
             students=students,
-
             rows=attendance_rows,
-
             total=total_attendance,
-
             unique=unique_students,
-
             sessions=recent_sessions,
-
             student_count=len(students),
-
-            session_count=total_sessions
+            session_count=total_sessions,
+            student_analytics=student_analytics,
+            course_rows=course_rows,
+            good_count=good_count,
+            average_count=average_count,
+            low_count=low_count,
+            class_percentage=class_percentage
         )
 
+    student = connection.execute("""
+        SELECT * FROM users WHERE username = ?
+    """, (session["username"],)).fetchone()
 
-    # ========================================================
-    # STUDENT DASHBOARD
-    # ========================================================
-
-    student = connection.execute(
-        """
-        SELECT *
-        FROM users
-        WHERE username = ?
-        """,
-        (
-            session["username"],
-        )
-    ).fetchone()
-
-
-    attendance_rows = connection.execute(
-        """
-        SELECT
-            a.*,
-            s.course,
-            s.room
-
+    attendance_rows = connection.execute("""
+        SELECT a.*, s.course, s.room
         FROM attendance a
-
-        JOIN sessions s
-        ON s.id = a.session_id
-
+        JOIN sessions s ON s.id = a.session_id
         WHERE a.student_id = ?
-
         ORDER BY a.id DESC
-        """,
-        (
-            session["username"],
-        )
-    ).fetchall()
+    """, (session["username"],)).fetchall()
 
+    total_sessions = connection.execute("""
+        SELECT COUNT(*) AS count FROM sessions
+    """).fetchone()["count"]
 
-    total_sessions = connection.execute(
-        """
-        SELECT COUNT(*) AS count
-        FROM sessions
-        """
-    ).fetchone()["count"]
-
-
-    present_count = connection.execute(
-        """
+    present_count = connection.execute("""
         SELECT COUNT(*) AS count
         FROM attendance
         WHERE student_id = ?
-        """,
-        (
-            session["username"],
-        )
-    ).fetchone()["count"]
-
+    """, (session["username"],)).fetchone()["count"]
 
     connection.close()
 
-
-    percentage = 0
-
-    if total_sessions > 0:
-
-        percentage = round(
-            (
-                present_count
-                /
-                total_sessions
-            ) * 100,
-            1
-        )
-
+    percentage = round((present_count / total_sessions) * 100, 1) if total_sessions > 0 else 0
 
     return render_template(
         "student_dashboard.html",
-
         student=student,
-
         rows=attendance_rows,
-
         total=total_sessions,
-
         present=present_count,
-
         percentage=percentage
     )
 
@@ -1290,6 +1265,430 @@ def mark(session_id):
 # ============================================================
 # ATTENDANCE RECORDS
 # ============================================================
+
+
+# ============================================================
+# STUDY MATERIAL HELPERS
+# ============================================================
+
+def allowed_material_file(filename):
+
+    return (
+        bool(filename)
+        and "." in filename
+        and filename.rsplit(".", 1)[1].lower()
+        in ALLOWED_MATERIAL_EXTENSIONS
+    )
+
+
+def calculate_file_hash(filepath):
+
+    sha256 = hashlib.sha256()
+
+    with open(filepath, "rb") as file:
+
+        for chunk in iter(
+            lambda: file.read(1024 * 1024),
+            b""
+        ):
+            sha256.update(chunk)
+
+    return sha256.hexdigest()
+
+
+# ============================================================
+# STUDY MATERIALS - FACULTY UPLOAD
+# ============================================================
+
+@app.route("/materials/upload", methods=["POST"])
+def upload_material():
+
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    if session.get("role") not in ["faculty", "admin"]:
+        flash("Only faculty or admin can upload materials.", "error")
+        return redirect(url_for("dashboard"))
+
+    title = request.form.get("title", "").strip()
+    description = request.form.get("description", "").strip()
+    uploaded_file = request.files.get("material")
+
+    if not title:
+        flash("Material title is required.", "error")
+        return redirect(url_for("materials"))
+
+    if not uploaded_file or not uploaded_file.filename:
+        flash("Please select a file to upload.", "error")
+        return redirect(url_for("materials"))
+
+    original_filename = secure_filename(
+        uploaded_file.filename
+    )
+
+    if not allowed_material_file(original_filename):
+        flash(
+            "Allowed files: PDF, PPT, PPTX, DOC, DOCX, TXT and ZIP.",
+            "error"
+        )
+        return redirect(url_for("materials"))
+
+    extension = original_filename.rsplit(".", 1)[1].lower()
+    unique_name = (
+        f"{secrets.token_hex(12)}.{extension}"
+    )
+
+    filepath = os.path.join(
+        UPLOAD_FOLDER,
+        unique_name
+    )
+
+    uploaded_file.save(filepath)
+
+    file_hash = calculate_file_hash(filepath)
+
+    connection = get_db()
+
+    connection.execute(
+        """
+        INSERT INTO materials
+        (
+            title,
+            description,
+            filename,
+            stored_filename,
+            file_hash,
+            uploaded_at,
+            faculty_username
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            title,
+            description,
+            original_filename,
+            unique_name,
+            file_hash,
+            datetime.now(timezone.utc).isoformat(),
+            session["username"]
+        )
+    )
+
+    connection.commit()
+    connection.close()
+
+    flash(
+        "Study material uploaded and SHA-256 fingerprint generated.",
+        "success"
+    )
+
+    return redirect(url_for("materials"))
+
+
+# ============================================================
+# STUDY MATERIALS - LIBRARY
+# ============================================================
+
+@app.route("/materials")
+def materials():
+
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    role = session.get("role")
+    username = session.get("username")
+
+    connection = get_db()
+
+    if role == "student":
+
+        student = connection.execute(
+            """
+            SELECT faculty_username
+            FROM users
+            WHERE username = ?
+            """,
+            (username,)
+        ).fetchone()
+
+        faculty_username = (
+            student["faculty_username"]
+            if student else None
+        )
+
+        materials_rows = connection.execute(
+            """
+            SELECT *
+            FROM materials
+            WHERE faculty_username = ?
+            ORDER BY id DESC
+            """,
+            (faculty_username,)
+        ).fetchall()
+
+    elif role == "faculty":
+
+        materials_rows = connection.execute(
+            """
+            SELECT *
+            FROM materials
+            WHERE faculty_username = ?
+            ORDER BY id DESC
+            """,
+            (username,)
+        ).fetchall()
+
+    elif role == "admin":
+
+        materials_rows = connection.execute(
+            """
+            SELECT *
+            FROM materials
+            ORDER BY id DESC
+            """
+        ).fetchall()
+
+    else:
+
+        materials_rows = []
+
+    connection.close()
+
+    return render_template(
+        "materials.html",
+        materials=materials_rows,
+        role=role
+    )
+
+
+# ============================================================
+# STUDY MATERIALS - DOWNLOAD
+# ============================================================
+
+@app.route("/materials/download/<int:material_id>")
+def download_material(material_id):
+
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    role = session.get("role")
+    username = session.get("username")
+
+    connection = get_db()
+
+    material = connection.execute(
+        """
+        SELECT *
+        FROM materials
+        WHERE id = ?
+        """,
+        (material_id,)
+    ).fetchone()
+
+    if not material:
+        connection.close()
+        flash("Material not found.", "error")
+        return redirect(url_for("materials"))
+
+    allowed = role == "admin"
+
+    if role == "faculty":
+        allowed = (
+            material["faculty_username"] == username
+        )
+
+    if role == "student":
+
+        student = connection.execute(
+            """
+            SELECT faculty_username
+            FROM users
+            WHERE username = ?
+            """,
+            (username,)
+        ).fetchone()
+
+        allowed = (
+            student is not None
+            and material["faculty_username"]
+            == student["faculty_username"]
+        )
+
+    connection.close()
+
+    if not allowed:
+        flash("You are not authorized to access this material.", "error")
+        return redirect(url_for("materials"))
+
+    filepath = os.path.join(
+        UPLOAD_FOLDER,
+        material["stored_filename"]
+    )
+
+    if not os.path.isfile(filepath):
+        flash(
+            "The material file is no longer available on the server.",
+            "error"
+        )
+        return redirect(url_for("materials"))
+
+    return send_file(
+        filepath,
+        as_attachment=True,
+        download_name=material["filename"]
+    )
+
+
+# ============================================================
+# STUDY MATERIALS - INTEGRITY VERIFICATION
+# ============================================================
+
+@app.route("/materials/verify/<int:material_id>")
+def verify_material(material_id):
+
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    role = session.get("role")
+    username = session.get("username")
+
+    connection = get_db()
+
+    material = connection.execute(
+        """
+        SELECT *
+        FROM materials
+        WHERE id = ?
+        """,
+        (material_id,)
+    ).fetchone()
+
+    if not material:
+        connection.close()
+        flash("Material not found.", "error")
+        return redirect(url_for("materials"))
+
+    allowed = role == "admin"
+
+    if role == "faculty":
+        allowed = (
+            material["faculty_username"] == username
+        )
+
+    if role == "student":
+
+        student = connection.execute(
+            """
+            SELECT faculty_username
+            FROM users
+            WHERE username = ?
+            """,
+            (username,)
+        ).fetchone()
+
+        allowed = (
+            student is not None
+            and material["faculty_username"]
+            == student["faculty_username"]
+        )
+
+    connection.close()
+
+    if not allowed:
+        flash("You are not authorized to verify this material.", "error")
+        return redirect(url_for("materials"))
+
+    filepath = os.path.join(
+        UPLOAD_FOLDER,
+        material["stored_filename"]
+    )
+
+    if not os.path.isfile(filepath):
+        flash(
+            "The material file is missing from the server.",
+            "error"
+        )
+        return redirect(url_for("materials"))
+
+    current_hash = calculate_file_hash(filepath)
+
+    verified = hmac.compare_digest(
+        current_hash,
+        material["file_hash"]
+    )
+
+    return render_template(
+        "material_verify.html",
+        material=material,
+        current_hash=current_hash,
+        verified=verified
+    )
+
+
+# ============================================================
+# STUDY MATERIALS - DELETE
+# ============================================================
+
+@app.route("/materials/delete/<int:material_id>", methods=["POST"])
+def delete_material(material_id):
+
+    if "username" not in session:
+        return redirect(url_for("login"))
+
+    role = session.get("role")
+    username = session.get("username")
+
+    if role not in ["faculty", "admin"]:
+        flash("Only faculty or admin can delete materials.", "error")
+        return redirect(url_for("materials"))
+
+    connection = get_db()
+
+    material = connection.execute(
+        """
+        SELECT *
+        FROM materials
+        WHERE id = ?
+        """,
+        (material_id,)
+    ).fetchone()
+
+    if not material:
+        connection.close()
+        flash("Material not found.", "error")
+        return redirect(url_for("materials"))
+
+    if (
+        role == "faculty"
+        and material["faculty_username"] != username
+    ):
+        connection.close()
+        flash("You can only delete your own materials.", "error")
+        return redirect(url_for("materials"))
+
+    filepath = os.path.join(
+        UPLOAD_FOLDER,
+        material["stored_filename"]
+    )
+
+    connection.execute(
+        """
+        DELETE FROM materials
+        WHERE id = ?
+        """,
+        (material_id,)
+    )
+
+    connection.commit()
+    connection.close()
+
+    if os.path.isfile(filepath):
+        os.remove(filepath)
+
+    flash("Study material deleted successfully.", "success")
+
+    return redirect(url_for("materials"))
+
 
 @app.route("/attendance")
 def attendance():
