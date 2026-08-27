@@ -71,12 +71,11 @@
             session for your students.
         </p>
 
-        <a
-            href="{{ url_for('create_session') }}"
-            class="btn full"
-        >
-            🔐 Create Attendance Session
-        </a>
+        <form method="POST" action="{{ url_for('create_session') }}">
+    <button type="submit" class="btn full">
+        🔐 Create Attendance Session
+    </button>
+</form>
 
     </div>
 
