@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% block content %}
+<div class="card login">
+  <div class="big">📷</div><span class="pill">SECURE PROOF-OF-PRESENCE</span>
+  <h1>Verify Attendance</h1><p>{{s.course}} · {{s.room}}</p>
+  <video id="camera" autoplay playsinline style="width:100%;max-width:600px;border-radius:14px;background:#000"></video>
+  <canvas id="canvas" style="display:none"></canvas>
+  <div class="card" style="margin-top:15px"><b>📍 GPS Status</b><p id="gps">Waiting for location permission...</p></div>
+  <div class="card" style="margin-top:15px"><b>📸 Camera Status</b><p id="photoStatus">Photo not captured</p></div>
+  <button class="btn full" type="button" id="startBtn">Start Camera & GPS</button>
+  <button class="btn full" type="button" id="captureBtn" disabled>Capture Live Photo</button>
+  <form method="post" id="attendanceForm">
+    <label>Student ID</label><input name="student_id" value="{{session.get('username','')}}" required>
+    <input type="hidden" name="latitude" id="latitude"><input type="hidden" name="longitude" id="longitude">
+    <input type="hidden" name="gps_accuracy" id="gps_accuracy"><input type="hidden" name="photo_data" id="photo_data">
+    <button class="btn full" type="submit" id="submitBtn" disabled>Submit Cryptographic Proof</button>
+  </form>
+</div>
+<script>
+const video=document.getElementById('camera'),canvas=document.getElementById('canvas');
+const start=document.getElementById('startBtn'),capture=document.getElementById('captureBtn'),submit=document.getElementById('submitBtn');
+let cam=false,gps=false,photo=false;
+function ready(){submit.disabled=!(cam&&gps&&photo);}
+start.onclick=async()=>{
+ try{video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});cam=true;capture.disabled=false;}catch(e){alert('Camera permission is required.');}
+ if(navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>{document.getElementById('latitude').value=p.coords.latitude;document.getElementById('longitude').value=p.coords.longitude;document.getElementById('gps_accuracy').value=p.coords.accuracy;document.getElementById('gps').innerHTML='Location captured: '+p.coords.latitude.toFixed(6)+', '+p.coords.longitude.toFixed(6)+' (±'+p.coords.accuracy.toFixed(1)+' m)';gps=true;ready();},()=>{document.getElementById('gps').innerHTML='❌ Location permission failed.'},{enableHighAccuracy:true,timeout:10000,maximumAge:0});}
+};
+capture.onclick=()=>{canvas.width=video.videoWidth;canvas.height=video.videoHeight;canvas.getContext('2d').drawImage(video,0,0);document.getElementById('photo_data').value=canvas.toDataURL('image/jpeg',.82);photo=true;document.getElementById('photoStatus').innerHTML='✅ Live photo captured.';ready();};
+</script>
+{% endblock %}
