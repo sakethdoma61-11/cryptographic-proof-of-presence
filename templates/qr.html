@@ -1,4 +1,0 @@
-{% extends "base.html" %}{% block content %}
-<div class="qr-layout"><div class="card qr-card"><div class="pill">SESSION {{s.id}}</div><h1>{{s.course}}</h1><p>{{s.room}} · Expires {{s.expires_at[11:19]}} UTC</p><div class="qr-frame"><img src="{{url_for('qr_png',session_id=s.id)}}"></div><div class="crypto-badge">✓ HMAC-SHA256 SIGNED · NONCE PROTECTED</div></div>
-<div class="card qr-info"><h2>Proof-of-Presence</h2><p>Students scan this dynamic QR code. The server validates the nonce, expiry and cryptographic signature before accepting attendance.</p><div class="step"><b>01</b><span>Scan QR</span></div><div class="step"><b>02</b><span>Enter student ID</span></div><div class="step"><b>03</b><span>Receive cryptographic receipt</span></div><a class="btn ghost full" href="{{url_for('dashboard')}}">← Back to dashboard</a></div></div>
-{% endblock %}
